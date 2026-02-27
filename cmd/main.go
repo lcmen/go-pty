@@ -18,6 +18,11 @@ var banner string = `
  |___/            |_|        |___/`
 
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: go-pty [options]\n\nProcess manager that runs commands from a Procfile with PTY support.\n\nOptions:\n")
+		flag.PrintDefaults()
+	}
+
 	procfilePath := flag.String("f", "./Procfile", "path to Procfile")
 	flag.Parse()
 

@@ -29,7 +29,7 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 - [x] Helper functions: `isComment`, `isEmpty`, `extractNameAndCommand`
 
 ### Then wire up (`cmd/main.go`):
-- [x] CLI entry point: accept optional path arg, default `./Procfile`
+- [x] CLI entry point: `-f` flag for Procfile path, default `./Procfile`
 - [x] Parse and print entries (sanity check, replaced in phase 2)
 
 ---

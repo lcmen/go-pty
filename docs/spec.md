@@ -7,8 +7,8 @@ A Go command-line tool that runs multiple commands concurrently, each in its own
 ## Usage
 
 ```bash
-pty-mux              # reads ./Procfile
-pty-mux Procfile.dev # reads a specific Procfile
+go-pty                    # reads ./Procfile
+go-pty -f Procfile.dev    # reads a specific Procfile
 ```
 
 ## Procfile Format
