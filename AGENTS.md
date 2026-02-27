@@ -33,8 +33,9 @@ gopty/            ← package gopty (all core logic and tests)
 
 ## Conventions
 
-- Dependencies: `github.com/creack/pty`, `golang.org/x/term`
+- Dependencies: `github.com/creack/pty`, `golang.org/x/term`, `github.com/google/go-cmp/cmp`
 - Commands are spawned via `sh -c "exec <command>"` — env vars are expanded by the shell
 - Build: `make build`
 - Test: `make test`
 - Lint: `make lint` (runs `go vet ./...` and `go fmt ./...`)
+- Tests use `cmp.Diff()` from `github.com/google/go-cmp/cmp` for assertions (e.g., `if diff := cmp.Diff(expected, got); diff != ""`)
