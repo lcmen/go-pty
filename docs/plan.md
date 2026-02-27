@@ -6,28 +6,30 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 
 ---
 
-## Phase 1 — Procfile Parsing `[ ]`
+## Phase 1 — Procfile Parsing `[x]`
 
 **Goal:** Parse a Procfile into process definitions.
 
 **Files:** `gopty/procfile.go`, `gopty/procfile_test.go`
 
 ### Tests first (`procfile_test.go`):
-- [ ] Parses `name: command` lines into `[]ProcEntry`
-- [ ] Skips empty lines
-- [ ] Skips `#` comment lines
-- [ ] Handles whitespace around `:` separator
-- [ ] Errors on lines with no `:` separator
-- [ ] Errors on empty/missing file
-- [ ] Handles commands containing `:` (only splits on first)
+- [x] Parses `name: command` lines into `[]Entry`
+- [x] Skips empty lines
+- [x] Skips `#` comment lines
+- [x] Handles whitespace around `:` separator
+- [x] Errors on lines with no `:` separator
+- [x] Errors on empty/missing file
+- [x] Handles commands containing `:` (only splits on first)
 
 ### Then implement (`procfile.go`):
-- [ ] `ProcEntry` struct (`Name`, `Command`)
-- [ ] `ParseProcfile(path string) ([]ProcEntry, error)`
+- [x] `Entry` struct (`Name`, `Command`)
+- [x] `File` struct (stores lines and path)
+- [x] `Open(path string) (*File, error)` — reads file into `File` struct
+- [x] `File.Parse() ([]Entry, error)` — parses lines into entries
 
 ### Then wire up (`cmd/main.go`):
-- [ ] CLI entry point: accept optional path arg, default `./Procfile`
-- [ ] Parse and print entries (sanity check, replaced in phase 2)
+- [x] CLI entry point: accept optional path arg, default `./Procfile`
+- [x] Parse and print entries (sanity check, replaced in phase 2)
 
 ---
 

@@ -45,7 +45,15 @@ Commands:
 ## Building
 
 ```bash
-go build -o go-pty ./cmd/go-pty
+make build
+```
+
+## Development
+
+```bash
+make test    # Run tests
+make lint    # Run go vet and go fmt
+make clean   # Remove built binary
 ```
 
 ## Dependencies
