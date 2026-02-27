@@ -2,9 +2,12 @@ package gopty
 
 import (
 	"io"
+	"os"
 	"sync"
 	"sync/atomic"
 	"syscall"
+
+	"github.com/creack/pty"
 )
 
 type OutputMode int
@@ -45,6 +48,13 @@ func (m *Manager) StartAll() error {
 		})
 	}
 
+	// Initial size
+	if f, ok := m.out.(*os.File); ok {
+		if ws, err := pty.GetsizeFull(f); err == nil {
+			m.ResizeAll(ws)
+		}
+	}
+
 	return nil
 }
 
@@ -73,6 +83,14 @@ func (m *Manager) Shutdown() {
 		}
 	}
 	m.wg.Wait()
+}
+
+func (m *Manager) ResizeAll(ws *pty.Winsize) {
+	for _, p := range m.processes {
+		if p.master != nil {
+			pty.Setsize(p.master, ws)
+		}
+	}
 }
 
 func (m *Manager) Wait() {
