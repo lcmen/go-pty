@@ -8,10 +8,10 @@
 
 ## Development Process
 
-This project uses **test-driven development (TDD)**. Each phase follows red-green-refactor:
+This project uses an **implementation-first** approach:
 
-1. Write failing tests
-2. Implement just enough code to pass them
+1. Implement the feature
+2. Write tests to verify it
 3. Refactor
 
 ## Important: Manual Review Required

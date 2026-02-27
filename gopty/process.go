@@ -66,6 +66,14 @@ func (p *Process) Read(w io.Writer) {
 			fmt.Fprintln(w, line)
 		}
 	}
+
+	exitCode := 0
+	if err := p.cmd.Wait(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		}
+	}
+	fmt.Fprintf(w, "%s exited (code %d)\n", p.prefix(), exitCode)
 }
 
 func (p *Process) prefix() string {

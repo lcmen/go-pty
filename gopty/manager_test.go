@@ -3,6 +3,8 @@ package gopty
 import (
 	"bytes"
 	"io"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -10,6 +12,23 @@ import (
 )
 
 var cmpOpt = cmpopts.IgnoreUnexported(Process{})
+
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (sb *syncBuffer) Write(p []byte) (int, error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Write(p)
+}
+
+func (sb *syncBuffer) String() string {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.String()
+}
 
 func TestNewManager(t *testing.T) {
 	m := NewManager([]Entry{
@@ -79,8 +98,30 @@ func TestManager_StartAll(t *testing.T) {
 	}
 	m.Wait()
 
-	expected := "\033[31m[web]\033[0m hello\n"
+	expected := "\033[31m[web]\033[0m hello\n\033[31m[web]\033[0m exited (code 0)\n"
 	if diff := cmp.Diff(expected, buf.String()); diff != "" {
 		t.Errorf("output mismatch (-expected +got):\n%s", diff)
+	}
+}
+
+func TestManager_Shutdown(t *testing.T) {
+	var buf syncBuffer
+	m := NewManager([]Entry{
+		{Name: "web", Command: "sleep 60"},
+		{Name: "worker", Command: "sleep 60"},
+	}, &buf)
+
+	if err := m.StartAll(); err != nil {
+		t.Fatalf("StartAll failed: %v", err)
+	}
+
+	m.Shutdown()
+
+	output := buf.String()
+	if !strings.Contains(output, "[web]\033[0m exited (code") {
+		t.Errorf("expected web exit message, got %q", output)
+	}
+	if !strings.Contains(output, "[worker]\033[0m exited (code") {
+		t.Errorf("expected worker exit message, got %q", output)
 	}
 }

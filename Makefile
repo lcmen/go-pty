@@ -6,7 +6,7 @@ build:
 	go build -o $(BINARY) ./cmd
 
 test:
-	go test ./gopty/
+	go test -race ./gopty/
 
 lint:
 	go vet ./...

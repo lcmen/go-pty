@@ -1,8 +1,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/lcmen/go-pty/gopty"
 )
@@ -15,33 +18,54 @@ var banner string = `
  |___/            |_|        |___/`
 
 func main() {
-	var procfilePath string
-
-	if len(os.Args) > 1 {
-		procfilePath = os.Args[1]
-	} else {
-		procfilePath = "./Procfile"
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: go-pty [options]\n\nProcess manager that runs commands from a Procfile with PTY support.\n\nOptions:\n")
+		flag.PrintDefaults()
 	}
 
-	pf, err := gopty.Open(procfilePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	procfilePath := flag.String("f", "./Procfile", "path to Procfile")
+	flag.Parse()
 
-	entries, err := pf.Parse()
+	m, err := initManager(*procfilePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Printf("%s\n\n", banner)
-	fmt.Printf("Starting %d process(es) from %s:\n\n", len(entries), procfilePath)
+	fmt.Printf("Starting process(es) from %s:\n\n", *procfilePath)
+
+	listenSig(func() {
+		m.Shutdown()
+	})
+
+	m.Wait()
+}
+
+func initManager(path string) (*gopty.Manager, error) {
+	pf, err := gopty.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := pf.Parse()
+	if err != nil {
+		return nil, err
+	}
 
 	m := gopty.NewManager(entries, os.Stdout)
 	if err := m.StartAll(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return nil, err
 	}
-	m.Wait()
+
+	return m, nil
+}
+
+func listenSig(handler func()) {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		handler()
+	}()
 }
