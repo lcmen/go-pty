@@ -7,6 +7,13 @@ import (
 	"github.com/lcmen/go-pty/gopty"
 )
 
+var banner string = `
+  __ _  ___        _ __ | |_ _   _
+ / _` + "`" + ` |/ _ \ _____| '_ \| __| | | |
+| (_| | (_) |_____| |_) | |_| |_| |
+ \__, |\___/      | .__/ \__|\__, |
+ |___/            |_|        |___/`
+
 func main() {
 	var procfilePath string
 
@@ -28,15 +35,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Print entries (sanity check for Phase 1)
-	fmt.Println(`
-  __ _  ___        _ __ | |_ _   _
- / _` + "`" + ` |/ _ \ _____| '_ \| __| | | |
-| (_| | (_) |_____| |_) | |_| |_| |
- \__, |\___/      | .__/ \__|\__, |
- |___/            |_|        |___/`)
-	fmt.Printf("\nStarting %d process(es) from %s:\n\n", len(entries), procfilePath)
-	for _, entry := range entries {
-		fmt.Printf("[%s] %s\n", entry.Name, entry.Command)
+	fmt.Printf("%s\n\n", banner)
+	fmt.Printf("Starting %d process(es) from %s:\n\n", len(entries), procfilePath)
+
+	m := gopty.NewManager(entries, os.Stdout)
+	if err := m.StartAll(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
+	m.Wait()
 }

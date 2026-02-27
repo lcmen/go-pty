@@ -26,6 +26,7 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 - [x] `File` struct (stores lines and path)
 - [x] `Open(path string) (*File, error)` — reads file into `File` struct
 - [x] `File.Parse() ([]Entry, error)` — parses lines into entries
+- [x] Helper functions: `isComment`, `isEmpty`, `extractNameAndCommand`
 
 ### Then wire up (`cmd/main.go`):
 - [x] CLI entry point: accept optional path arg, default `./Procfile`
@@ -33,26 +34,30 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 
 ---
 
-## Phase 2 — Process Spawning & Output Reading `[ ]`
+## Phase 2 — Process Spawning & Output Reading `[x]`
 
 **Goal:** Start commands in PTYs, read output with colored prefixes.
 
-**Files:** `gopty/process.go`, `gopty/manager.go`, `gopty/manager_test.go`
+**Files:** `gopty/process.go`, `gopty/process_test.go`, `gopty/manager.go`, `gopty/manager_test.go`
 
-### Tests first (`manager_test.go`):
-- [ ] `StartAll` launches processes that run and produce output
-- [ ] `readOutput` captures stdout from a simple `echo` command
-- [ ] Output lines are prefixed with `[label]` and ANSI color codes
-- [ ] Colors rotate through the palette for >6 processes
-- [ ] Partial lines are buffered until `\n` arrives
-- [ ] Multiple rapid lines from one process all get prefixed correctly
+### Tests first:
+- [x] `NewManager` creates Process structs with correct entries and colors
+- [x] `Process.Read` with `OutputAll` prefixes lines with colored `[name]`
+- [x] `Process.Read` with `OutputAttached` prints raw lines
+- [x] `Process.Read` with `OutputIgnored` drops all output
+- [x] Colors rotate through the 12-color palette
 
 ### Then implement:
-- [ ] `Process` struct (label, cmd, master, color, lineBuf, dropped)
-- [ ] `Manager` struct (processes, attached, rawState, mu, wg)
-- [ ] `Manager.StartAll()` — spawn via `sh -c "exec <cmd>"`, `Setpgid`, `pty.Start`
-- [ ] `readOutput` goroutine — read loop, mutex-guarded line extraction and printing
-- [ ] Color assignment from palette with modulo wrapping
+- [x] `Process` struct (Entry, Color, cmd, master, outputMode)
+- [x] `Manager` struct (processes, attached `atomic.Pointer[Process]`, wg)
+- [x] `NewProcess(entry, index)` — assigns color from palette
+- [x] `Process.Start()` — spawn via `sh -c "exec <cmd>"`, `pty.Start`
+- [x] `Process.Read(w)` — scan loop, routes via `outputMode` callback
+- [x] `OutputMode` enum (`OutputAll`, `OutputAttached`, `OutputIgnored`)
+- [x] `Manager.outputMode(p)` — factory returns closure capturing `m.attached` and `p`
+- [x] `Manager.StartAll()` — start processes, launch read goroutines via `wg.Go`
+- [x] `Manager.Attach(name)` / `Manager.Detach()` / `Manager.Wait()`
+- [x] Wire up in `cmd/main.go` with error handling
 
 ---
 
@@ -63,16 +68,14 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 **Files:** `gopty/manager.go` (extend), `gopty/manager_test.go` (extend)
 
 ### Tests first:
-- [ ] Process exit flushes remaining partial line in buffer
 - [ ] Exit code is printed: `[name] exited (code 0)`
 - [ ] Non-zero exit code is reported correctly
-- [ ] `Shutdown()` sends SIGTERM to all process groups
+- [ ] `Shutdown()` sends SIGTERM to all processes
 - [ ] `Shutdown()` waits for all goroutines to finish
-- [ ] Terminal state is restored if in raw mode during shutdown
 
 ### Then implement:
-- [ ] Exit handling in `readOutput` — flush lineBuf, print exit code
-- [ ] `Manager.Shutdown()` — `Kill(-pid, SIGTERM)` per process, `wg.Wait()`
+- [ ] Exit handling in `Read` — print exit code when process ends
+- [ ] `Manager.Shutdown()` — send SIGTERM to each process, `wg.Wait()`
 - [ ] Signal listener for SIGINT/SIGTERM in `cmd/main.go`
 - [ ] Defer terminal restore at top of main
 
@@ -80,7 +83,7 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 
 ## Phase 4 — Terminal Resize (SIGWINCH) `[ ]`
 
-**Files:** `gopty/manager.go` (extend), `gopty/manager_test.go` (extend)
+**Files:** `gopty/manager.go` (extend)
 
 ### Tests first:
 - [ ] Initial PTY size matches a provided size
@@ -104,7 +107,6 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 - [ ] `!0` returns error (1-indexed)
 - [ ] `!99` returns error for out-of-range
 - [ ] `!web` matches process by label (case-insensitive)
-- [ ] `!Web` matches `web` (case-insensitive)
 - [ ] `!nonexistent` returns error
 - [ ] Leading/trailing whitespace is trimmed
 - [ ] Input without `!` prefix is ignored
@@ -121,40 +123,17 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 **Files:** `gopty/manager.go` (extend), `gopty/manager_test.go` (extend)
 
 ### Tests first:
-- [ ] `stepIn` sets `m.attached` to the target process
-- [ ] While attached, `readOutput` writes raw output for the attached process (no prefix)
-- [ ] While attached, other processes' output goes to `lineBuf` only (not stdout)
-- [ ] Byte value 29 (ctrl+]) triggers `stepOut`
-- [ ] `stepOut` sets `m.attached` to nil
-- [ ] `stepOut` flushes buffered output from all processes with prefixes
+- [ ] `Attach` sets `m.attached` to the target process
+- [ ] While attached, output is raw (no prefix) for attached process
+- [ ] While attached, other processes' output is dropped
+- [ ] Byte value 29 (ctrl+]) triggers `Detach`
+- [ ] `Detach` sets `m.attached` to nil
 - [ ] Non-ctrl+] bytes are written to `p.master`
 
 ### Then implement:
-- [ ] `stepIn(p)` — print instructions, `term.MakeRaw`, set attached
-- [ ] `stepOut()` — restore terminal, clear attached, flush buffers
-- [ ] Modify `handleStdin` for raw mode byte forwarding
-- [ ] Modify `readOutput` to check attached state and route output accordingly
-
----
-
-## Phase 7 — Buffer Overflow `[ ]`
-
-**Goal:** Cap background buffers at 1MB, track dropped lines.
-
-**Files:** `gopty/manager.go` (extend), `gopty/manager_test.go` (extend)
-
-### Tests first:
-- [ ] Buffer exceeding 1MB is trimmed from the front
-- [ ] Trimming happens at a line boundary (next `\n` after cut point)
-- [ ] `p.dropped` count reflects number of lines removed
-- [ ] On flush after step-out, drop count message is printed before buffered content
-- [ ] `p.dropped` resets to 0 after flush
-- [ ] Buffer exactly at 1MB is not trimmed
-
-### Then implement:
-- [ ] Overflow check in `readOutput` buffering path
-- [ ] Line-boundary trimming logic
-- [ ] Drop count message in `stepOut` flush
+- [ ] `Attach(name)` — print instructions, `term.MakeRaw`, set attached
+- [ ] `Detach()` — restore terminal, clear attached
+- [ ] Modify stdin handler for raw mode byte forwarding
 
 ---
 
@@ -172,6 +151,7 @@ go-pty/
       procfile.go
       procfile_test.go
       process.go
+      process_test.go
       manager.go
       manager_test.go
       input.go
@@ -179,7 +159,6 @@ go-pty/
   docs/
     spec.md
     plan.md
-    concepts.md
 ```
 
 `cmd/main.go` is a thin entry point — flag parsing, signal wiring, and calling into `gopty`. All logic and tests live in the `gopty` package.
@@ -191,19 +170,17 @@ go-pty/
 **Unit tests** — pure logic, no real PTYs:
 - Procfile parsing
 - Command parsing (`!N`, `!name`)
-- Buffer overflow / trimming logic
 - Color assignment
+- Output routing via `outputMode` callback
 
 **Integration tests** — real PTYs with short-lived commands:
 - Spawn `echo hello` in a PTY, verify prefixed output
 - Spawn a process, verify exit code reporting
-- Spawn a process, verify SIGTERM kills the process group
+- Spawn a process, verify SIGTERM kills the process
 - Step-in/step-out with a process that echoes stdin
 
 **Test helpers:**
-- `captureOutput(fn)` — redirect stdout to a buffer, run fn, return captured string
-- `testManager(entries)` — create a Manager with test ProcEntries without starting processes
-- `waitFor(condition, timeout)` — poll for async conditions in goroutine tests
+- `stubProcess(entry, mode, input)` — create Process with `os.Pipe` for testing `Read`
 
 ---
 
@@ -212,7 +189,6 @@ go-pty/
 | Risk | Mitigation |
 |------|------------|
 | Terminal left in raw mode on crash | `defer` restore at top of main |
-| Zombie processes on unclean exit | Process group kill reaches descendants |
-| Mutex held during blocking I/O | Read outside lock; only processing locked |
-| Race between step-in and process exit | Check attached under mutex |
-| Flaky integration tests with PTYs | Short-lived commands, `waitFor` with timeouts |
+| Zombie processes on unclean exit | SIGTERM to child processes on shutdown |
+| Race between attach and process exit | `atomic.Pointer` for lock-free reads |
+| Flaky integration tests with PTYs | Short-lived commands, timeouts |
