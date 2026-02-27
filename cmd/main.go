@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/creack/pty"
 	"github.com/lcmen/go-pty/gopty"
 )
 
@@ -35,9 +36,8 @@ func main() {
 	fmt.Printf("%s\n\n", banner)
 	fmt.Printf("Starting process(es) from %s:\n\n", *procfilePath)
 
-	listenSig(func() {
-		m.Shutdown()
-	})
+	listenResize(m.ResizeAll)
+	listenTerm(m.Shutdown)
 
 	m.Wait()
 }
@@ -61,7 +61,20 @@ func initManager(path string) (*gopty.Manager, error) {
 	return m, nil
 }
 
-func listenSig(handler func()) {
+func listenResize(handler func(*pty.Winsize)) {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGWINCH)
+	go func() {
+		for range sigCh {
+			ws, err := pty.GetsizeFull(os.Stdin)
+			if err == nil {
+				handler(ws)
+			}
+		}
+	}()
+}
+
+func listenTerm(handler func()) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {

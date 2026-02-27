@@ -81,17 +81,17 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 
 ---
 
-## Phase 4 — Terminal Resize (SIGWINCH) `[ ]`
+## Phase 4 — Terminal Resize (SIGWINCH) `[x]`
 
-**Files:** `gopty/manager.go` (extend)
+**Files:** `gopty/manager.go` (extend), `gopty/manager_test.go` (extend), `cmd/main.go` (extend)
 
-### Tests first:
-- [ ] Initial PTY size matches a provided size
-- [ ] `ResizeAll` propagates dimensions to all PTY masters
+### Tests:
+- [x] `ResizeAll` sets dimensions on PTY master
 
-### Then implement:
-- [ ] Set initial PTY size on startup
-- [ ] SIGWINCH listener calls `pty.InheritSize(os.Stdin, p.master)` for all processes
+### Implement:
+- [x] `Manager.ResizeAll(ws)` — calls `pty.Setsize` on each process's PTY master
+- [x] `StartAll` sets initial PTY size by reading terminal size from `m.out` via `*os.File` type assertion
+- [x] `listenResize` in `cmd/main.go` — SIGWINCH listener loops, reads fresh size via `pty.GetsizeFull`, calls `m.ResizeAll`
 
 ---
 

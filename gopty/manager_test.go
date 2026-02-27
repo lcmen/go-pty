@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/creack/pty"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
@@ -86,6 +87,27 @@ func TestManager_Detach(t *testing.T) {
 
 	if m.Attached() != nil {
 		t.Error("attached should be nil after Detach")
+	}
+}
+
+func TestManager_ResizeAll(t *testing.T) {
+	var buf syncBuffer
+	m := NewManager([]Entry{{Name: "web", Command: "sleep 60"}}, &buf)
+
+	if err := m.StartAll(); err != nil {
+		t.Fatalf("StartAll failed: %v", err)
+	}
+	defer m.Shutdown()
+
+	ws := &pty.Winsize{Rows: 40, Cols: 100}
+	m.ResizeAll(ws)
+
+	got, err := pty.GetsizeFull(m.processes[0].master)
+	if err != nil {
+		t.Fatalf("GetsizeFull failed: %v", err)
+	}
+	if got.Rows != 40 || got.Cols != 100 {
+		t.Errorf("expected 40x100, got %dx%d", got.Rows, got.Cols)
 	}
 }
 
