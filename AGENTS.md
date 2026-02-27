@@ -35,5 +35,6 @@ gopty/            ← package gopty (all core logic and tests)
 
 - Dependencies: `github.com/creack/pty`, `golang.org/x/term`
 - Commands are spawned via `sh -c "exec <command>"` — env vars are expanded by the shell
-- Build: `go build -o go-pty ./cmd`
-- Test: `go test ./gopty/`
+- Build: `make build`
+- Test: `make test`
+- Lint: `make lint` (runs `go vet ./...` and `go fmt ./...`)
