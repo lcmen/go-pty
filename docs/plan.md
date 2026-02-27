@@ -61,23 +61,23 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 
 ---
 
-## Phase 3 — Process Exit & Shutdown `[ ]`
+## Phase 3 — Process Exit & Shutdown `[x]`
 
 **Goal:** Clean termination, exit codes, signal handling.
 
-**Files:** `gopty/manager.go` (extend), `gopty/manager_test.go` (extend)
+**Files:** `gopty/process.go` (extend), `gopty/process_test.go` (extend), `gopty/manager.go` (extend), `gopty/manager_test.go` (extend), `cmd/main.go` (extend)
 
-### Tests first:
-- [ ] Exit code is printed: `[name] exited (code 0)`
-- [ ] Non-zero exit code is reported correctly
-- [ ] `Shutdown()` sends SIGTERM to all processes
-- [ ] `Shutdown()` waits for all goroutines to finish
+### Implement:
+- [x] Exit handling in `Read` — print exit code when process ends
+- [x] `Manager.Shutdown()` — send SIGTERM to each process, `wg.Wait()`
+- [x] Signal listener for SIGINT/SIGTERM in `cmd/main.go`
+- [ ] Defer terminal restore at top of main (deferred to Phase 6)
 
-### Then implement:
-- [ ] Exit handling in `Read` — print exit code when process ends
-- [ ] `Manager.Shutdown()` — send SIGTERM to each process, `wg.Wait()`
-- [ ] Signal listener for SIGINT/SIGTERM in `cmd/main.go`
-- [ ] Defer terminal restore at top of main
+### Tests:
+- [x] Exit code is printed: `[name] exited (code 0)`
+- [x] Non-zero exit code is reported correctly
+- [x] `Shutdown()` sends SIGTERM to all processes
+- [x] `Shutdown()` waits for all goroutines to finish
 
 ---
 

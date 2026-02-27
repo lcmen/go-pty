@@ -4,6 +4,7 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
+	"syscall"
 )
 
 type OutputMode int
@@ -63,6 +64,15 @@ func (m *Manager) Attach(name string) bool {
 
 func (m *Manager) Detach() {
 	m.attached.Store(nil)
+}
+
+func (m *Manager) Shutdown() {
+	for _, p := range m.processes {
+		if p.cmd != nil && p.cmd.Process != nil {
+			p.cmd.Process.Signal(syscall.SIGTERM)
+		}
+	}
+	m.wg.Wait()
 }
 
 func (m *Manager) Wait() {
