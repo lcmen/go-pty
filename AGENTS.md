@@ -38,4 +38,4 @@ gopty/            ← package gopty (all core logic and tests)
 - Build: `make build`
 - Test: `make test`
 - Lint: `make lint` (runs `go vet ./...` and `go fmt ./...`)
-- Tests use `cmp.Diff()` from `github.com/google/go-cmp/cmp` for assertions (e.g., `if diff := cmp.Diff(expected, got); diff != ""`)
+- Tests use `cmp.Diff()` for assertions
