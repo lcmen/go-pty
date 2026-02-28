@@ -71,7 +71,7 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 - [x] Exit handling in `Read` — print exit code when process ends
 - [x] `Manager.Shutdown()` — send SIGTERM to each process, `wg.Wait()`
 - [x] Signal listener for SIGINT/SIGTERM in `cmd/main.go`
-- [ ] Defer terminal restore at top of main (deferred to Phase 6)
+- [x] Defer terminal restore at top of main (done in Phase 5a)
 
 ### Tests:
 - [x] Exit code is printed: `[name] exited (code 0)`
@@ -95,45 +95,58 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 
 ---
 
-## Phase 5 — Step-In Command Parsing `[ ]`
+## Phase 5a — Process Selection Dialog & Attach `[x]`
 
-**Goal:** Parse `!N` and `!name` from stdin input.
+**Goal:** Dialog modal on alternate screen for process selection, attach/detach via ctrl+].
 
-**Files:** `gopty/input.go`, `gopty/input_test.go`
+**Files:** `gopty/dialog.go`, `gopty/dialog_test.go`, `gopty/controller.go`, `gopty/controller_test.go`, `gopty/utils.go`, `gopty/utils_test.go`, `gopty/manager.go` (extend), `gopty/manager_test.go` (extend), `cmd/main.go` (extend)
 
-### Tests first (`input_test.go`):
-- [ ] `!1` returns process index 0
-- [ ] `!3` returns process index 2
-- [ ] `!0` returns error (1-indexed)
-- [ ] `!99` returns error for out-of-range
-- [ ] `!web` matches process by label (case-insensitive)
-- [ ] `!nonexistent` returns error
-- [ ] Leading/trailing whitespace is trimmed
-- [ ] Input without `!` prefix is ignored
+### Dialog (`dialog.go`):
+- [x] `Dialog` struct with `Open()` — blocking, enters alt screen, runs input loop, returns `(int, bool)`
+- [x] Arrow key navigation with clamping, Enter selects, Esc cancels
+- [x] Renders process list with colors and reverse video highlight
+- [x] Private `readKey()` using 3-byte buffer + string matching for ESC/arrow ambiguity
+- [x] ANSI constants: `enterAltScreen`, `leaveAltScreen`, `showCursor`, `hideCursor`, `clearScreen`, `cursorHome`, `reverseVideo`
 
-### Then implement (`input.go`):
-- [ ] `ParseStepInCommand(input string, processes []*Process) (*Process, error)`
+### Controller (`controller.go`):
+- [x] State machine: Normal (all output) → Dialog → Attached
+- [x] `Run()` loop checks `c.err == nil`, dispatches to `handleAllOut()` / `handleAttached()`
+- [x] ctrl+c (byte 3) shuts down in normal mode
+- [x] ctrl+] (byte 29) opens dialog in normal mode, detaches in attached mode
+- [x] `Shutdown()` sets `c.err = io.EOF` and calls `m.Shutdown()`
+
+### Utils (`utils.go`):
+- [x] Shared byte constants: `byteCtrlC`, `byteCtrlBracket`, `byteEsc`, `byteEnter`
+- [x] Shared sequence constants: `seqArrowUp`, `seqArrowDown`
+- [x] `readBytes(r, n)` — shared by Dialog and Controller
+
+### Manager changes (`manager.go`):
+- [x] `Attach(index int) error` — index-based attachment with bounds checking
+- [x] `Processes() []*Process` — exposes process list for Dialog
+
+### Raw mode (`cmd/main.go`):
+- [x] `rawMode(f)` enters raw mode, returns restore closure
+- [x] Terminal enters raw mode at startup, `defer restore()`
+- [x] Controller wired up: `go c.Run()`, `listenTerm(c.Shutdown)`
+- [x] `\r\n` in process output for raw mode compatibility
+
+### Tests:
+- [x] Dialog: enter selects, arrow navigation with clamping, esc cancels
+- [x] Controller: ctrl+c shutdown, ctrl+] dialog open/close, attach/detach flow
+- [x] Manager: index-based attach, out-of-range errors
+- [x] `readBytes`: reads up to n bytes, handles fewer available
 
 ---
 
-## Phase 6 — Stepped-In Mode `[ ]`
+## Phase 5b — Keystroke Forwarding `[ ]`
 
-**Goal:** Raw terminal forwarding to one process, ctrl+] to detach.
+**Goal:** Forward stdin to attached process's PTY master.
 
-**Files:** `gopty/manager.go` (extend), `gopty/manager_test.go` (extend)
+**Files:** `gopty/controller.go` (extend), `gopty/controller_test.go` (extend)
 
-### Tests first:
-- [ ] `Attach` sets `m.attached` to the target process
-- [ ] While attached, output is raw (no prefix) for attached process
-- [ ] While attached, other processes' output is dropped
-- [ ] Byte value 29 (ctrl+]) triggers `Detach`
-- [ ] `Detach` sets `m.attached` to nil
-- [ ] Non-ctrl+] bytes are written to `p.master`
-
-### Then implement:
-- [ ] `Attach(name)` — print instructions, `term.MakeRaw`, set attached
-- [ ] `Detach()` — restore terminal, clear attached
-- [ ] Modify stdin handler for raw mode byte forwarding
+### Implement:
+- [ ] In `handleAttached`, forward non-ctrl+] bytes to `p.master.Write()`
+- [ ] ctrl+c in attached mode forwarded to process (not go-pty shutdown)
 
 ---
 
@@ -146,7 +159,7 @@ go-pty/
   go.mod
   go.sum
   cmd/
-    main.go                ← package main (CLI entry, signals, flags)
+    main.go                ← package main (CLI entry, signals, flags, raw mode)
   gopty/                   ← package gopty (all core logic)
       procfile.go
       procfile_test.go
@@ -154,14 +167,18 @@ go-pty/
       process_test.go
       manager.go
       manager_test.go
-      input.go
-      input_test.go
+      controller.go
+      controller_test.go
+      dialog.go
+      dialog_test.go
+      utils.go
+      utils_test.go
   docs/
     spec.md
     plan.md
 ```
 
-`cmd/main.go` is a thin entry point — flag parsing, signal wiring, and calling into `gopty`. All logic and tests live in the `gopty` package.
+`cmd/main.go` is a thin entry point — flag parsing, signal wiring, raw mode, and calling into `gopty`. All logic and tests live in the `gopty` package.
 
 ---
 
@@ -169,18 +186,21 @@ go-pty/
 
 **Unit tests** — pure logic, no real PTYs:
 - Procfile parsing
-- Command parsing (`!N`, `!name`)
 - Color assignment
 - Output routing via `outputMode` callback
+- Dialog navigation and selection (bytes.Reader as stdin)
+- Controller state machine (bytes.Reader as stdin)
+- `readBytes` utility
 
 **Integration tests** — real PTYs with short-lived commands:
 - Spawn `echo hello` in a PTY, verify prefixed output
 - Spawn a process, verify exit code reporting
 - Spawn a process, verify SIGTERM kills the process
-- Step-in/step-out with a process that echoes stdin
 
 **Test helpers:**
 - `stubProcess(entry, mode, input)` — create Process with `os.Pipe` for testing `Read`
+- `stubProcesses()` — create `[]*Process` for Dialog tests
+- `stubManager()` — create Manager with single entry for Controller tests
 
 ---
 

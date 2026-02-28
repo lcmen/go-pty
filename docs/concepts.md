@@ -1,6 +1,6 @@
 # Terminal & PTY Concepts
 
-A guide to the foundational concepts behind pty-mux.
+A guide to the foundational concepts behind go-pty.
 
 ---
 
@@ -51,9 +51,9 @@ Raw mode tells the TTY driver: "stop helping, give me everything."
 | Line buffering | Program gets complete lines | Program gets every keystroke immediately |
 | Ctrl+Z, Ctrl+D | Kernel handles them | Just bytes to the program |
 
-**Why pty-mux needs raw mode:** When you step into a process, we need to forward *every* keystroke to that process immediately. If the TTY driver was buffering lines and intercepting Ctrl+C, the attached process would never receive those keystrokes. An interactive debugger needs to receive raw input to work properly.
+**Why go-pty needs raw mode:** The terminal enters raw mode at startup so the Controller can read individual keystrokes (like ctrl+] to open the dialog, or ctrl+c to shutdown). Without raw mode, the TTY driver would buffer input until Enter and intercept Ctrl+C as SIGINT. Raw mode only affects stdin — process output is unaffected and renders normally (though lines must use `\r\n` instead of `\n` since the TTY driver no longer translates newlines).
 
-**Why we must restore:** If pty-mux crashes while in raw mode, your terminal stays in raw mode. Your shell is still running, but:
+**Why we must restore:** If go-pty crashes while in raw mode, your terminal stays in raw mode. Your shell is still running, but:
 - Nothing you type is echoed on screen
 - Backspace doesn't work visually
 - Ctrl+C doesn't kill anything (it's just byte 3 going to your shell)
@@ -70,12 +70,12 @@ A PTY is a fake terminal created by the kernel. It has two ends:
 ```
 +-----------+          +------ PTY ------+
 |           |  master  |                 |  slave   +----------+
-|  pty-mux  | ◄------► |   TTY Driver    | ◄------► |  child   |
+|  go-pty   | ◄------► |   TTY Driver    | ◄------► |  child   |
 |           |   (fd)   |   (in kernel)   |   (fd)   | process  |
 +-----------+          +-----------------+          +----------+
 ```
 
-- **Master end** — held by pty-mux. We read output from it and write keystrokes to it.
+- **Master end** — held by go-pty. We read output from it and write keystrokes to it.
 - **Slave end** — given to the child process as its stdin/stdout/stderr (fd 0, 1, 2). The child has no idea it's not a real terminal.
 
 **Why not just use pipes?** Many programs change behavior when they detect they're not connected to a terminal:
@@ -115,13 +115,9 @@ sh (pid 100, pgid 100)
 
 If we only `kill(101)`, the puma workers become orphans and keep running. That's a resource leak.
 
-**Process groups** solve this. By setting `Setpgid: true`, each command gets its own process group:
+**Process groups** solve this. `pty.Start()` internally calls `setsid` which creates a new session and process group for each child. On shutdown, go-pty sends SIGTERM to each process via `p.cmd.Process.Signal(syscall.SIGTERM)`.
 
-```go
-cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-```
-
-Now `kill(-pid, SIGTERM)` (note the negative pid) sends the signal to every process in that group. The entire tree gets terminated.
+Note: We don't use `Setpgid: true` because it conflicts with `pty.Start()`'s internal `setsid` call (particularly on WSL2). The `exec` prefix in `sh -c "exec <command>"` ensures there's no extra `sh` wrapper, so the SIGTERM reaches the actual command.
 
 ---
 
@@ -136,7 +132,7 @@ Signals are the kernel's way of poking a process. The relevant ones for pty-mux:
 | SIGWINCH | Ignored | Terminal window is resized |
 | SIGTSTP | Suspend | User presses Ctrl+Z (in cooked mode) |
 
-pty-mux listens for:
+go-pty listens for:
 - **SIGINT / SIGTERM** — triggers graceful shutdown (kill all children, restore terminal, exit)
 - **SIGWINCH** — propagates the new terminal size to all child PTYs so they reflow their output
 
@@ -147,8 +143,8 @@ pty-mux listens for:
 Terminals have a width and height (e.g., 80x24). Programs query this to format output (wrapping text, drawing progress bars, table layouts).
 
 When you resize your terminal window:
-1. The kernel sends **SIGWINCH** to the foreground process (pty-mux)
-2. pty-mux calls `pty.InheritSize(os.Stdin, p.master)` for each child
+1. The kernel sends **SIGWINCH** to the foreground process (go-pty)
+2. go-pty reads the new size via `pty.GetsizeFull(os.Stdin)` and calls `pty.Setsize(p.master, ws)` for each child
 3. This copies the new dimensions from our real terminal to each PTY
 4. The kernel sends SIGWINCH to each child process
 5. Children re-query their terminal size and reflow output
@@ -205,42 +201,59 @@ When we create a PTY and give the slave end to a child process, the slave fd is 
 
 ---
 
-## Mutexes — Preventing Garbled Output
+## Atomic Operations — Lock-Free Attach/Detach
 
-pty-mux runs a goroutine per process, all reading output concurrently. Without synchronization, two goroutines writing to stdout simultaneously could produce garbled output:
+go-pty runs a goroutine per process, all reading output concurrently. Each goroutine calls an `outputMode` callback on every line to decide how to route output (prefixed, raw, or ignored). This callback reads `m.attached` to check which process is currently attached.
 
-```
-[web] Starting se[worker] Sidekiq 7.0 starting
-rver on port 3000
-```
-
-A **mutex** (mutual exclusion lock) ensures only one goroutine writes to stdout at a time:
+Since this is a hot path (called per line of output), go-pty uses `atomic.Pointer[Process]` instead of a mutex:
 
 ```go
-m.mu.Lock()
-fmt.Printf("[%s] %s\n", p.label, line)
-m.mu.Unlock()
+type Manager struct {
+    attached atomic.Pointer[Process]
+    // ...
+}
 ```
 
-The mutex also protects shared state like `m.attached` (which process we're stepped into) and `p.lineBuf` (partial output buffers). The critical rule: **never hold the mutex during a blocking operation** (like reading from a PTY), or you'll freeze the whole program.
+`atomic.Pointer` provides lock-free reads and writes — goroutines never block each other. The `outputMode` closure captures both the manager and the specific process, so each goroutine can check attachment status without locking:
+
+```go
+func (m *Manager) outputMode(p *Process) func() OutputMode {
+    return func() OutputMode {
+        attached := m.Attached()  // atomic load
+        if attached == nil { return OutputAll }
+        if attached == p { return OutputAttached }
+        return OutputIgnored
+    }
+}
+```
+
+Note: concurrent writes to stdout from multiple goroutines can still interleave. In practice, `fmt.Fprintf` with short lines rarely produces garbled output, and the colored prefixes make it clear which process each line belongs to.
 
 ---
 
-## Line Buffering
+## Line Scanning
 
-PTY reads return arbitrary chunks of data, not neat lines:
+PTY reads return arbitrary chunks of data, not neat lines. go-pty uses `bufio.Scanner` to handle this — it reads from the PTY master and yields complete lines (split on `\n`), handling the buffering internally:
+
+```go
+scanner := bufio.NewScanner(p.master)
+for scanner.Scan() {
+    line := scanner.Text()
+    // route based on outputMode
+}
+```
+
+Since the terminal is in raw mode, output uses `\r\n` (carriage return + newline) instead of `\n`. Without the `\r`, each line would start further to the right because raw mode disables the TTY driver's automatic newline-to-carriage-return translation.
+
+## Alternate Screen Buffer
+
+Terminals support two screen buffers: the **normal screen** (where your shell output lives) and the **alternate screen** (used by full-screen programs like vim, less, htop).
+
+go-pty uses the alternate screen for the process selection dialog:
 
 ```
-Read 1: "Starting ser"
-Read 2: "ver on port 3000\nReady\nAcce"
-Read 3: "pting connections\n"
+\033[?1049h  — enter alternate screen (saves cursor, clears screen)
+\033[?1049l  — leave alternate screen (restores previous content)
 ```
 
-We need to reassemble these into complete lines before printing with prefixes. Each process has a `lineBuf` string that accumulates data across reads:
-
-1. Append new data to `lineBuf`
-2. Find all complete lines (ending with `\n`)
-3. Print each with the colored prefix
-4. Keep the remainder (no `\n` yet) in `lineBuf`
-
-When a process exits, we flush whatever's left in `lineBuf` as a final partial line.
+When the dialog opens, it switches to the alternate screen, draws the process list, and handles arrow key navigation. When the user selects a process or presses Esc, it switches back — the original output is restored exactly as it was. Any process output that arrived during the dialog is harmless (it writes to the alternate screen and gets discarded on switch back).

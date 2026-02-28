@@ -61,9 +61,9 @@ func (p *Process) Read(w io.Writer) {
 
 		switch p.outputMode() {
 		case OutputAll:
-			fmt.Fprintf(w, "%s %s\n", p.prefix(), line)
+			fmt.Fprintf(w, "%s %s\r\n", p.prefix(), line)
 		case OutputAttached:
-			fmt.Fprintln(w, line)
+			fmt.Fprintf(w, "%s\r\n", line)
 		}
 	}
 
@@ -73,7 +73,7 @@ func (p *Process) Read(w io.Writer) {
 			exitCode = exitErr.ExitCode()
 		}
 	}
-	fmt.Fprintf(w, "%s exited (code %d)\n", p.prefix(), exitCode)
+	fmt.Fprintf(w, "%s exited (code %d)\r\n", p.prefix(), exitCode)
 }
 
 func (p *Process) prefix() string {

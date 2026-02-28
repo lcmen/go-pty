@@ -9,6 +9,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/lcmen/go-pty/gopty"
+	"golang.org/x/term"
 )
 
 var banner string = `
@@ -36,9 +37,14 @@ func main() {
 	fmt.Printf("%s\n\n", banner)
 	fmt.Printf("Starting process(es) from %s:\n\n", *procfilePath)
 
-	listenResize(m.ResizeAll)
-	listenTerm(m.Shutdown)
+	restore := rawMode(os.Stdin)
+	defer restore()
 
+	c := gopty.NewController(m, os.Stdin, os.Stdout)
+	listenResize(m.ResizeAll)
+	listenTerm(c.Shutdown)
+
+	go c.Run()
 	m.Wait()
 }
 
@@ -81,4 +87,15 @@ func listenTerm(handler func()) {
 		<-sigCh
 		handler()
 	}()
+}
+
+func rawMode(f *os.File) func() {
+	oldState, err := term.MakeRaw(int(f.Fd()))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error entering raw mode: %v\n", err)
+		os.Exit(1)
+	}
+	return func() {
+		term.Restore(int(f.Fd()), oldState)
+	}
 }

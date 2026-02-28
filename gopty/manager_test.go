@@ -48,13 +48,13 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestManager_Attach(t *testing.T) {
-	t.Run("returns true for existing process", func(t *testing.T) {
+	t.Run("attaches process at valid index", func(t *testing.T) {
 		m := NewManager([]Entry{
 			{Name: "web", Command: "cmd1"},
 		}, io.Discard)
 
-		if diff := cmp.Diff(true, m.Attach("web")); diff != "" {
-			t.Errorf("Attach result mismatch (-expected +got):\n%s", diff)
+		if err := m.Attach(0); err != nil {
+			t.Errorf("Attach returned unexpected error: %v", err)
 		}
 
 		if m.Attached() != m.processes[0] {
@@ -62,17 +62,17 @@ func TestManager_Attach(t *testing.T) {
 		}
 	})
 
-	t.Run("returns false for nonexistent process", func(t *testing.T) {
+	t.Run("returns error for out-of-range index", func(t *testing.T) {
 		m := NewManager([]Entry{
 			{Name: "web", Command: "cmd1"},
 		}, io.Discard)
 
-		if diff := cmp.Diff(false, m.Attach("nonexistent")); diff != "" {
-			t.Errorf("Attach result mismatch (-expected +got):\n%s", diff)
+		if err := m.Attach(5); err == nil {
+			t.Error("Attach should return error for out-of-range index")
 		}
 
-		if m.Attached() != nil {
-			t.Error("Attach should attach any process")
+		if err := m.Attach(-1); err == nil {
+			t.Error("Attach should return error for negative index")
 		}
 	})
 }
@@ -120,7 +120,7 @@ func TestManager_StartAll(t *testing.T) {
 	}
 	m.Wait()
 
-	expected := "\033[31m[web]\033[0m hello\n\033[31m[web]\033[0m exited (code 0)\n"
+	expected := "\033[31m[web]\033[0m hello\r\n\033[31m[web]\033[0m exited (code 0)\r\n"
 	if diff := cmp.Diff(expected, buf.String()); diff != "" {
 		t.Errorf("output mismatch (-expected +got):\n%s", diff)
 	}
