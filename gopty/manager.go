@@ -1,6 +1,7 @@
 package gopty
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -48,7 +49,7 @@ func (m *Manager) StartAll() error {
 		})
 	}
 
-	// Initial size
+	// Set the initial size for PTY
 	if f, ok := m.out.(*os.File); ok {
 		if ws, err := pty.GetsizeFull(f); err == nil {
 			m.ResizeAll(ws)
@@ -62,14 +63,16 @@ func (m *Manager) Attached() *Process {
 	return m.attached.Load()
 }
 
-func (m *Manager) Attach(name string) bool {
-	for _, p := range m.processes {
-		if p.Entry.Name == name {
-			m.attached.Store(p)
-			return true
-		}
+func (m *Manager) Attach(index int) error {
+	if index < 0 || index >= len(m.processes) {
+		return fmt.Errorf("process index %d out of range [0, %d)", index, len(m.processes))
 	}
-	return false
+	m.attached.Store(m.processes[index])
+	return nil
+}
+
+func (m *Manager) Processes() []*Process {
+	return m.processes
 }
 
 func (m *Manager) Detach() {
