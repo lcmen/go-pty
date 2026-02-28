@@ -1,8 +1,8 @@
-# PTY Multiplexer (pty-mux) — Implementation Specification
+# go-pty — Implementation Specification
 
 ## Overview
 
-A Go command-line tool that runs multiple commands concurrently, each in its own PTY (pseudoterminal). By default it shows prefixed output from all commands. The user can "step into" a single process for full interactive terminal access (e.g. `binding.pry`, `byebug`, `pdb`).
+A Go command-line tool that runs multiple commands concurrently, each in its own PTY (pseudoterminal). By default it shows prefixed output from all commands. The user can attach to a single process via a dialog modal for full interactive terminal access (e.g. `binding.pry`, `byebug`, `pdb`).
 
 ## Usage
 
@@ -31,7 +31,7 @@ github.com/creack/pty   — spawn processes in a PTY
 golang.org/x/term       — raw mode, terminal state save/restore
 ```
 
-## Architecture
+## Architecture (MVC)
 
 ### Core Concepts
 
@@ -39,148 +39,144 @@ golang.org/x/term       — raw mode, terminal state save/restore
 - The child process gets the PTY slave end as its fd 0/1/2 — it thinks it's a real terminal
 - The Go program holds the PTY master end — reads output and writes keystrokes through it
 - Commands are run via `sh -c "exec <command>"` so shell features work (pipes, &&, env vars) and `exec` eliminates the extra `sh` wrapper process
-- Each child gets its own process group (`Setpgid: true`) so we can kill the entire process tree with `syscall.Kill(-pid, SIGTERM)`
+- `pty.Start()` internally calls `setsid` to create a new session for each child
+- Terminal enters raw mode at startup so the Controller can read individual keystrokes
+- Output uses `\r\n` for raw mode compatibility
 
-### Two Modes
+### Three States
 
-**All Output Mode (default)**
-- A goroutine per process reads from each PTY master
-- Output is buffered per process until a complete line (`\n`) is received
+**Normal (All Output) — default**
+- A goroutine per process reads from each PTY master via `bufio.Scanner`
 - Complete lines are printed with a colored prefix: `[web] Starting server on port 3000`
-- A mutex protects stdout writes so lines from different processes don't interleave
-- User types `!1` or `!web` + Enter to step into a process
+- ctrl+] opens the process selection dialog
+- ctrl+c shuts down go-pty
 
-**Stepped In Mode**
-- The real terminal is switched to raw mode (`term.MakeRaw`)
-- Every keystroke from stdin is forwarded directly to the attached process's PTY master
-- The attached process's output goes directly to stdout (no prefix, no buffering)
-- Other processes' output is buffered (not printed), with a 1MB cap per process — oldest lines are dropped when the cap is exceeded, with a count of dropped lines tracked
-- `ctrl+]` (byte value 29) detaches and returns to all output mode
-- On detach, buffered output from other processes is flushed with prefixes, showing drop counts if any
+**Dialog (Alternate Screen)**
+- Switches to the alternate screen buffer
+- Displays a numbered process list with colors and arrow key highlight
+- Arrow keys navigate, Enter selects (attaches), Esc cancels (returns to normal)
+- Dialog.Open() is blocking — owns its own input loop, returns `(index, bool)`
+
+**Attached**
+- The attached process's output goes directly to stdout (no prefix)
+- Other processes' output is dropped (not buffered)
+- ctrl+] detaches and returns to normal mode
+- Other keystrokes are forwarded to the attached process's PTY master (Phase 5b)
 
 ### Data Structures
 
 ```go
 type Process struct {
-    label   string       // name from Procfile
-    args    []string     // command args
-    cmd     *exec.Cmd
-    master  *os.File     // PTY master fd
-    color   string       // ANSI color code for prefix
-    lineBuf string       // accumulates partial lines between reads
-    dropped int          // lines dropped due to buffer overflow
+    Color      string          // ANSI color code for prefix
+    Entry                      // Name + Command from Procfile
+    cmd        *exec.Cmd
+    master     *os.File        // PTY master fd (bidirectional)
+    outputMode func() OutputMode // callback to determine routing
 }
 
 type Manager struct {
+    attached  atomic.Pointer[Process] // nil = normal mode, lock-free
+    out       io.Writer
     processes []*Process
-    attached  *Process       // nil = all output mode
-    rawState  *term.State    // saved terminal state before raw mode
-    mu        sync.Mutex     // protects attached, lineBuf, dropped, stdout
-    wg        sync.WaitGroup // tracks readOutput goroutines for clean shutdown
+    wg        sync.WaitGroup          // tracks read goroutines
+}
+
+type Controller struct {
+    err     error       // set to io.EOF to stop Run loop
+    manager *Manager
+    stdin   io.Reader
+    stdout  io.Writer
+}
+
+type Dialog struct {
+    in        io.Reader
+    out       io.Writer
+    processes []*Process
+    selected  int
 }
 ```
 
-### Concurrency & Mutex Rules
+### Concurrency
 
-All reads and writes to `m.attached`, `p.lineBuf`, and `p.dropped` must hold `m.mu`. The mutex also protects stdout writes to prevent interleaving. The mutex is NOT held during blocking `Read()` calls — only around the processing/printing logic after a read completes.
+`atomic.Pointer[Process]` provides lock-free reads on the hot path (called per line of output in each goroutine). No mutex is needed — the `outputMode` callback captures the manager and process, performing an atomic load to check attachment status.
 
-Pattern in readOutput:
-```
-1. Read from PTY master (blocking, no mutex)
-2. Lock mutex
-3. Append to lineBuf
-4. Check mode (attached == this process? different process? nil?)
-5. Print or buffer accordingly
-6. Unlock mutex
-```
+### Output Routing
 
-### Line Buffering Logic
+Each process has an `outputMode` callback assigned at construction by `Manager.outputMode(p)`. The callback returns one of three modes:
 
-PTY reads return arbitrary chunks, not complete lines. Each process has a `lineBuf` that accumulates data across reads:
-
-1. Every read appends to `lineBuf`
-2. In all output mode: extract and print every complete line (up to `\n`), keep the remainder
-3. In stepped-in mode for this process: write raw to stdout, clear buffer
-4. In stepped-in mode for another process: just buffer, trim to 1MB if needed by dropping oldest lines at line boundaries
-
-When a process exits, flush any remaining partial line in the buffer.
-
-### Buffer Overflow Handling
-
-When stepped into a different process and a buffer exceeds 1MB:
-1. Calculate how many lines are in the excess portion
-2. Add that count to `p.dropped`
-3. Trim from the front at a line boundary (find next `\n` after cut point)
-4. On step out, print drop count before flushing: `[worker] ... 847 lines dropped (buffer full) ...`
+- `OutputAll` — no process attached, print with colored prefix
+- `OutputAttached` — this process is attached, print raw
+- `OutputIgnored` — another process is attached, drop output
 
 ### Process Spawning
 
 ```go
 cmd := exec.Command("sh", "-c", "exec " + command)
-cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 master, err := pty.Start(cmd)
 ```
 
 - `sh -c` handles shell parsing (quotes, pipes, variables)
 - `exec` prefix replaces `sh` with the actual command (no extra process)
-- `Setpgid: true` creates a new process group so `Kill(-pid)` reaches all descendants
+- `pty.Start()` calls `setsid` internally to create a new session
 
 ### Terminal Resize (SIGWINCH)
 
-Listen for SIGWINCH signal. On resize, call `pty.InheritSize(os.Stdin, p.master)` for all processes to propagate the new terminal dimensions to each PTY. Also set initial size on startup.
+Listen for SIGWINCH signal. On resize, read new size via `pty.GetsizeFull(os.Stdin)` and call `pty.Setsize(p.master, ws)` for all processes to propagate the new terminal dimensions to each PTY. Also set initial size on startup in `StartAll()`.
 
 ### Graceful Shutdown
 
-On SIGINT (ctrl+c in all output mode) or SIGTERM:
-1. Restore terminal from raw mode if needed
-2. Send SIGTERM to each process group: `syscall.Kill(-p.cmd.Process.Pid, syscall.SIGTERM)`
-3. Wait for all readOutput goroutines to finish (`wg.Wait()`)
-4. Exit
+On SIGINT/SIGTERM or ctrl+c in normal mode:
+1. `Controller.Shutdown()` sets `c.err = io.EOF` and calls `m.Shutdown()`
+2. `Manager.Shutdown()` sends SIGTERM to each process via `p.cmd.Process.Signal(syscall.SIGTERM)`
+3. Waits for all read goroutines to finish (`wg.Wait()`)
+4. `defer restore()` in main restores terminal from raw mode
 
 ### Terminal Safety
 
-- `defer` at top of main restores terminal state on panic
-- `rawState` is set to `nil` after restore to prevent double-restore
-- Shutdown handler restores terminal before printing
+- `rawMode(os.Stdin)` returns a restore closure, called via `defer` at top of main
+- Even on panic, the deferred restore runs and the terminal is returned to normal
 
-### Step In/Out Flow
+### Attach/Detach Flow
 
-**Step In:**
-1. Print instructions ("ctrl+] to detach")
-2. Save terminal state with `term.MakeRaw(os.Stdin.Fd())`
-3. Set `m.attached = p` (under mutex)
-4. handleStdin loop now forwards all bytes to `p.master.Write()` except ctrl+]
+**Attach (via Dialog):**
+1. ctrl+] opens Dialog on alternate screen
+2. User navigates with arrow keys, selects with Enter
+3. `Dialog.Open()` returns selected index
+4. Controller calls `Manager.Attach(index)` — atomic store
+5. Output routing changes immediately via `outputMode` callbacks
 
-**Step Out:**
-1. Restore terminal with `term.Restore()`, set rawState to nil
-2. Set `m.attached = nil` (under mutex)
-3. Flush buffered output from all processes (with drop counts)
-4. Print instructions for all output mode
+**Detach:**
+1. ctrl+] in attached mode
+2. Controller calls `Manager.Detach()` — atomic store of nil
+3. Output routing reverts to prefixed mode
 
 ### Process Exit
 
-When `p.master.Read()` returns an error:
-1. Lock mutex
-2. Flush remaining partial line in lineBuf
-3. Print exit code from `p.cmd.ProcessState.ExitCode()`
-4. Unlock mutex
-5. Decrement WaitGroup
+When `bufio.Scanner.Scan()` returns false (PTY master closed):
+1. Call `p.cmd.Wait()` to get exit status
+2. Print exit message: `[name] exited (code N)`
+3. Goroutine returns, decrementing WaitGroup
 
 ### Color Assignment
 
-Processes are assigned colors in order from a palette:
+Processes are assigned colors in order from a 12-color palette:
 ```
-red, green, yellow, blue, magenta, cyan
+red, green, yellow, blue, magenta, cyan,
+bright red, bright green, bright yellow, bright blue, bright magenta, bright cyan
 ```
-Colors wrap around with modulo for more than 6 processes.
+Colors wrap around with modulo for more than 12 processes.
 
-### User Commands (All Output Mode)
+### User Commands
 
-- `!N` + Enter — step into process N (1-indexed)
-- `!name` + Enter — step into process by Procfile label (case-insensitive)
-- ctrl+c — kill all processes and exit
+**Normal mode:**
+- ctrl+] — open process selection dialog
+- ctrl+c — shut down go-pty (SIGTERM all processes)
 
-### User Commands (Stepped In Mode)
+**Dialog mode:**
+- Arrow up/down — navigate process list
+- Enter — select and attach to highlighted process
+- Esc — cancel, return to normal mode
 
-- ctrl+] — detach, return to all output mode
-- All other keystrokes forwarded to the attached process
+**Attached mode:**
+- ctrl+] — detach, return to normal mode
+- All other keystrokes forwarded to the attached process (Phase 5b)
