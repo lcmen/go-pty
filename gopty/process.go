@@ -63,7 +63,7 @@ func (p *Process) Read(w io.Writer) {
 		case OutputAll:
 			fmt.Fprintf(w, "%s %s\r\n", p.prefix(), line)
 		case OutputAttached:
-			fmt.Fprintf(w, "%s\r\n", line)
+			fmt.Fprintf(w, "%s %s\r\n", p.attachedPrefix(), line)
 		}
 	}
 
@@ -78,4 +78,8 @@ func (p *Process) Read(w io.Writer) {
 
 func (p *Process) prefix() string {
 	return fmt.Sprintf("%s[%s]\033[0m", p.Color, p.Entry.Name)
+}
+
+func (p *Process) attachedPrefix() string {
+	return fmt.Sprintf("%s[%s - attached]\033[0m", p.Color, p.Entry.Name)
 }
