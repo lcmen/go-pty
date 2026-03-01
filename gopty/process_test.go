@@ -69,7 +69,7 @@ func TestProcess_Read(t *testing.T) {
 		var buf bytes.Buffer
 		p.Read(&buf)
 
-		expected := "line1\r\nline2\r\n\033[31m[web]\033[0m exited (code 0)\r\n"
+		expected := "\033[31m[web - attached]\033[0m line1\r\n\033[31m[web - attached]\033[0m line2\r\n\033[31m[web]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
 			t.Errorf("output mismatch (-expected +got):\n%s", diff)
 		}

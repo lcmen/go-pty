@@ -1,6 +1,9 @@
 package gopty
 
-import "io"
+import (
+	"fmt"
+	"io"
+)
 
 type Controller struct {
 	err     error
@@ -47,6 +50,8 @@ func (c *Controller) handleAllOut() {
 		idx, ok := d.Open()
 		if ok {
 			c.manager.Attach(idx)
+			p := c.manager.Attached()
+			fmt.Fprintf(c.stdout, "--- attached to %s (ctrl+] to detach) ---\r\n", p.Name)
 		}
 	}
 }
@@ -59,7 +64,9 @@ func (c *Controller) handleAttached() {
 	}
 
 	if buf[0] == byteCtrlBracket {
+		p := c.manager.Attached()
 		c.manager.Detach()
+		fmt.Fprintf(c.stdout, "--- detached from %s ---\r\n", p.Name)
 	}
 
 	// Other bytes ignored for now (Phase 5b: forward to process)
