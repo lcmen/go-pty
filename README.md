@@ -1,14 +1,14 @@
 # go-pty
 
-A terminal multiplexer that runs multiple commands concurrently, each in its own pseudoterminal. Think [foreman](https://github.com/ddollar/foreman) or [overmind](https://github.com/DarthSim/overmind), but simpler — prefixed log output by default, with the ability to step into any process for full interactive terminal access.
+A terminal multiplexer that runs multiple commands concurrently, each in its own pseudoterminal. Think [foreman](https://github.com/ddollar/foreman) or [overmind](https://github.com/DarthSim/overmind), but simpler — prefixed log output by default, with the ability to attach to any process for full interactive terminal access.
 
 This makes it possible to use interactive debuggers (`binding.pry`, `byebug`, `pdb`, `debugger`) inside a Procfile-managed dev environment.
 
 ## Usage
 
 ```bash
-go-pty              # reads ./Procfile
-go-pty Procfile.dev # reads a specific Procfile
+go-pty           # reads ./Procfile
+go-pty -f FILE   # reads a specific Procfile
 ```
 
 ### Procfile format
@@ -24,7 +24,7 @@ css: tailwindcss --watch
 
 ### Modes
 
-**All Output Mode** (default) — prefixed, color-coded output from all processes:
+**Normal** (default) — prefixed, color-coded output from all processes:
 
 ```
 [web]    Starting server on port 3000
@@ -32,15 +32,31 @@ css: tailwindcss --watch
 [css]    Rebuilding...
 ```
 
-Commands:
-- `!1` or `!web` + Enter — step into a process (by number or name)
-- `ctrl+c` — kill all processes and exit
+- `ctrl+]` — open process selection dialog
+- `ctrl+c` — shut down all processes and exit
 
-**Stepped In Mode** — full interactive terminal access to one process:
+**Dialog** — pick a process to attach to:
 
-- All keystrokes forwarded to the attached process
-- Other processes' output is buffered (up to 1MB each)
-- `ctrl+]` — detach and return to all output mode
+```
+Select a process (↑/↓ navigate, Enter select, Esc cancel):
+
+  > 1. web
+    2. worker
+    3. css
+```
+
+- Arrow keys — navigate the list
+- `Enter` — attach to the highlighted process
+- `Esc` — cancel, return to normal mode
+
+**Attached** — output from the attached process, prefixed with `[name - attached]`:
+
+```
+[web - attached] Started GET "/" for 127.0.0.1
+[web - attached] Processing by HomeController#index as HTML
+```
+
+- `ctrl+]` — detach and return to normal mode
 
 ## Building
 
@@ -60,8 +76,9 @@ make clean   # Remove built binary
 
 | Package | Purpose |
 |---------|---------|
-| [github.com/creack/pty](https://github.com/creack/pty) | Spawn processes in a pseudoterminal |
+| [github.com/creack/pty](https://github.com/creack/pty) | Spawn processes in pseudoterminals |
 | [golang.org/x/term](https://pkg.go.dev/golang.org/x/term) | Raw mode, terminal state save/restore |
+| [github.com/google/go-cmp](https://github.com/google/go-cmp) | Test assertions (dev only) |
 
 ## License
 
