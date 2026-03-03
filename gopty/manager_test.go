@@ -3,6 +3,7 @@ package gopty
 import (
 	"bytes"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -77,6 +78,35 @@ func TestManager_Attach(t *testing.T) {
 	})
 }
 
+func TestManager_WriteToAttached(t *testing.T) {
+	t.Run("forwards bytes to attached process", func(t *testing.T) {
+		r, w, _ := os.Pipe()
+		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard)
+		m.processes[0].master = w
+		m.Attach(0)
+
+		m.WriteToAttached([]byte("hello"))
+		w.Close()
+
+		var buf bytes.Buffer
+		buf.ReadFrom(r)
+		// Expect '\n' from Attach(), then 'hello'
+		if buf.String() != "\nhello" {
+			t.Errorf("expected %q, got %q", "\nhello", buf.String())
+		}
+	})
+
+	t.Run("no-op when no process is attached", func(t *testing.T) {
+		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard)
+
+		n, err := m.WriteToAttached([]byte("hello"))
+
+		if n != 0 || err != nil {
+			t.Errorf("expected (0, nil), got (%d, %v)", n, err)
+		}
+	})
+}
+
 func TestManager_Detach(t *testing.T) {
 	m := NewManager([]Entry{
 		{Name: "web", Command: "cmd1"},
@@ -129,8 +159,8 @@ func TestManager_StartAll(t *testing.T) {
 func TestManager_Shutdown(t *testing.T) {
 	var buf syncBuffer
 	m := NewManager([]Entry{
-		{Name: "web", Command: "sleep 60"},
-		{Name: "worker", Command: "sleep 60"},
+		{Name: "web", Command: "trap 'exit 0' INT; sleep 60"},
+		{Name: "worker", Command: "trap 'exit 0' INT; sleep 60"},
 	}, &buf)
 
 	if err := m.StartAll(); err != nil {

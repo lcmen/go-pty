@@ -6,7 +6,6 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
-	"syscall"
 
 	"github.com/creack/pty"
 )
@@ -21,13 +20,13 @@ const (
 
 type Manager struct {
 	attached  atomic.Pointer[Process]
-	out       io.Writer
+	stdout    io.Writer
 	processes []*Process
 	wg        sync.WaitGroup
 }
 
-func NewManager(entries []Entry, out io.Writer) *Manager {
-	m := &Manager{out: out}
+func NewManager(entries []Entry, stdout io.Writer) *Manager {
+	m := &Manager{stdout: stdout}
 
 	for i, entry := range entries {
 		p := NewProcess(entry, i)
@@ -45,12 +44,12 @@ func (m *Manager) StartAll() error {
 		}
 
 		m.wg.Go(func() {
-			p.Read(m.out)
+			p.Read(m.stdout)
 		})
 	}
 
 	// Set the initial size for PTY
-	if f, ok := m.out.(*os.File); ok {
+	if f, ok := m.stdout.(*os.File); ok {
 		if ws, err := pty.GetsizeFull(f); err == nil {
 			m.ResizeAll(ws)
 		}
@@ -68,6 +67,8 @@ func (m *Manager) Attach(index int) error {
 		return fmt.Errorf("process index %d out of range [0, %d)", index, len(m.processes))
 	}
 	m.attached.Store(m.processes[index])
+	// Send enter to trigger fresh prompt at correct position
+	m.WriteToAttached([]byte("\n"))
 	return nil
 }
 
@@ -80,12 +81,19 @@ func (m *Manager) Detach() {
 }
 
 func (m *Manager) Shutdown() {
+	// Start shutting down processes
 	for _, p := range m.processes {
-		if p.cmd != nil && p.cmd.Process != nil {
-			p.cmd.Process.Signal(syscall.SIGTERM)
-		}
+		p.Shutdown()
 	}
-	m.wg.Wait()
+
+	// Wait for all processes to exit
+	var wg sync.WaitGroup
+	for _, p := range m.processes {
+		wg.Go(func() {
+			p.Wait()
+		})
+	}
+	wg.Wait()
 }
 
 func (m *Manager) ResizeAll(ws *pty.Winsize) {
@@ -98,6 +106,14 @@ func (m *Manager) ResizeAll(ws *pty.Winsize) {
 
 func (m *Manager) Wait() {
 	m.wg.Wait()
+}
+
+func (m *Manager) WriteToAttached(buf []byte) (int, error) {
+	p := m.Attached()
+	if p == nil {
+		return 0, nil
+	}
+	return p.Write(buf)
 }
 
 func (m *Manager) outputMode(p *Process) func() OutputMode {

@@ -14,6 +14,16 @@ const (
 	seqArrowDown = "\x1b[B"
 )
 
+func readByte(r io.Reader) (byte, error) {
+	buf, err := readBytes(r, 1)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return buf[0], nil
+}
+
 func readBytes(r io.Reader, n int) ([]byte, error) {
 	buf := make([]byte, n)
 	read, err := r.Read(buf)
