@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>go-pty</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <div class="max-w-2xl mx-auto px-6 py-20">
+    <pre class="text-green-400 text-sm mb-6">
+  __ _  ___        _ __ | |_ _   _
+ / _` |/ _ \ _____| '_ \| __| | | |
+| (_| | (_) |_____| |_) | |_| |_| |
+ \__, |\___/      | .__/ \__|\__, |
+ |___/            |_|        |___/</pre>
+
+    <p class="text-lg text-gray-300 mb-8">
+      A process manager that runs commands from a Procfile, each in its own pseudoterminal.
+      Attach to any process for full interactive access &mdash; use debuggers like
+      <code class="text-green-400">binding.irb</code>, <code class="text-green-400">pdb</code>,
+      or <code class="text-green-400">debugger</code> inside your dev environment.
+    </p>
+
+    <div class="flex gap-4 mb-12">
+      <a href="https://github.com/lcmen/go-pty" class="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded transition">GitHub</a>
+      <a href="https://github.com/lcmen/go-pty/releases" class="bg-gray-800 hover:bg-gray-700 text-white font-medium px-5 py-2 rounded border border-gray-700 transition">Download</a>
+    </div>
+
+    <h2 class="text-xl font-semibold mb-4">Quick start</h2>
+
+    <pre class="bg-gray-900 rounded p-4 text-sm mb-8 overflow-x-auto"><code><span class="text-gray-500"># Install (Linux/macOS)</span>
+OS=$(uname -s | tr A-Z a-z)
+ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+URL=https://github.com/lcmen/go-pty/releases/latest/download
+curl -fsSL $URL/go-pty-$OS-$ARCH -o ~/.local/bin/go-pty
+chmod +x ~/.local/bin/go-pty
+
+<span class="text-gray-500"># Run</span>
+go-pty -f Procfile</code></pre>
+
+    <h2 class="text-xl font-semibold mb-4">Keyboard shortcuts</h2>
+
+    <table class="w-full text-sm mb-8">
+      <thead>
+        <tr class="border-b border-gray-800 text-left">
+          <th class="py-2 text-gray-400">Mode</th>
+          <th class="py-2 text-gray-400">Key</th>
+          <th class="py-2 text-gray-400">Action</th>
+        </tr>
+      </thead>
+      <tbody class="text-gray-300">
+        <tr class="border-b border-gray-900"><td class="py-2">Normal</td><td class="py-2"><kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">ctrl+]</kbd></td><td class="py-2">Open process selection</td></tr>
+        <tr class="border-b border-gray-900"><td class="py-2">Normal</td><td class="py-2"><kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">ctrl+c</kbd></td><td class="py-2">Shut down and exit</td></tr>
+        <tr class="border-b border-gray-900"><td class="py-2">Dialog</td><td class="py-2"><kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">Up/Down</kbd></td><td class="py-2">Navigate list</td></tr>
+        <tr class="border-b border-gray-900"><td class="py-2">Dialog</td><td class="py-2"><kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">Enter</kbd></td><td class="py-2">Attach to process</td></tr>
+        <tr class="border-b border-gray-900"><td class="py-2">Dialog</td><td class="py-2"><kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">Esc</kbd></td><td class="py-2">Cancel</td></tr>
+        <tr><td class="py-2">Attached</td><td class="py-2"><kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">ctrl+]</kbd></td><td class="py-2">Detach</td></tr>
+      </tbody>
+    </table>
+
+    <footer class="text-gray-600 text-sm">
+      MIT License
+    </footer>
+  </div>
+</body>
+</html>

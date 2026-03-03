@@ -3,7 +3,6 @@ package gopty
 import (
 	"fmt"
 	"io"
-	"os"
 	"time"
 )
 
@@ -35,24 +34,19 @@ func (c *Controller) Run() {
 func (c *Controller) Shutdown() {
 	c.err = io.EOF
 	c.manager.Shutdown()
-	c.drainStdin()
 }
 
-func (c *Controller) drainStdin() {
-	// Check if stdin is *os.File
-	file, ok := c.stdin.(*os.File)
-	if !ok {
-		return
-	}
-
-	// Read everything from stdin within 100ms to empty the stdin buffer
-	file.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-	buf := make([]byte, 1024)
-	for {
-		if _, err := file.Read(buf); err != nil {
-			break
+func (c *Controller) Cleanup() {
+	// Drain any pending bytes from stdin (e.g. CPR responses from processes that queried during shutdown).
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			if _, err := c.stdin.Read(buf); err != nil {
+				return
+			}
 		}
-	}
+	}()
+	time.Sleep(100 * time.Millisecond)
 }
 
 func (c *Controller) handleAllOut() {

@@ -47,6 +47,7 @@ func main() {
 
 	go c.Run()
 	m.Wait()
+	c.Cleanup()
 }
 
 func initManager(path string, stdout io.Writer) (*gopty.Manager, error) {
