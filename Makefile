@@ -1,16 +1,19 @@
+.PHONY: build clean install lint test
+
 BINARY = go-pty
 
-.PHONY: build test lint clean
-
-build:
+build: clean
 	go build -o $(BINARY) ./cmd
 
-test:
-	go test -race ./gopty/
+clean:
+	rm -f $(BINARY)
 
 lint:
 	go vet ./...
 	go fmt ./...
 
-clean:
-	rm -f $(BINARY)
+install: build
+	cp $(BINARY) $(HOME)/.local/bin
+
+test:
+	go test -race ./gopty/

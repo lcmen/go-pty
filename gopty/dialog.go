@@ -74,14 +74,13 @@ func (d *Dialog) close() {
 
 func (d *Dialog) render() {
 	fmt.Fprint(d.out, clearScreen+cursorHome+hideCursor)
-	fmt.Fprintln(d.out, "Select a process (↑/↓ navigate, Enter select, Esc cancel):")
-	fmt.Fprintln(d.out)
+	fmt.Fprint(d.out, "Select a process (↑/↓ navigate, Enter select, Esc cancel):\r\n\r\n")
 
 	for i, p := range d.processes {
 		if i == d.selected {
-			fmt.Fprintf(d.out, "  %s> %d. %s\033[0m\n", reverseVideo, i+1, p.Name)
+			fmt.Fprintf(d.out, "  %s> %d. %s\033[0m\r\n", reverseVideo, i+1, p.Name)
 		} else {
-			fmt.Fprintf(d.out, "  %s  %d. %s\033[0m\n", p.Color, i+1, p.Name)
+			fmt.Fprintf(d.out, "  %s  %d. %s\033[0m\r\n", p.Color, i+1, p.Name)
 		}
 	}
 }

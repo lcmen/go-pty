@@ -1,11 +1,15 @@
 package gopty
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -43,6 +47,7 @@ func TestProcess_Read(t *testing.T) {
 		p := NewProcess(entry, 0)
 		p.cmd = cmd
 		p.master = r
+		p.reader = bufio.NewReader(r)
 		p.outputMode = func() OutputMode { return mode }
 
 		w.WriteString(input)
@@ -63,13 +68,13 @@ func TestProcess_Read(t *testing.T) {
 		}
 	})
 
-	t.Run("OutputAttached prints raw lines", func(t *testing.T) {
+	t.Run("OutputAttached passes through raw bytes", func(t *testing.T) {
 		p := stubProcess(Entry{Name: "web", Command: "cmd"}, OutputAttached, "line1\nline2\n")
 
 		var buf bytes.Buffer
 		p.Read(&buf)
 
-		expected := "\033[31m[web - attached]\033[0m line1\r\n\033[31m[web - attached]\033[0m line2\r\n\033[31m[web]\033[0m exited (code 0)\r\n"
+		expected := "line1\nline2\n\033[31m[web - attached]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
 			t.Errorf("output mismatch (-expected +got):\n%s", diff)
 		}
@@ -98,4 +103,59 @@ func TestProcess_Read(t *testing.T) {
 			t.Errorf("output mismatch (-expected +got):\n%s", diff)
 		}
 	})
+}
+
+func TestProcess_Shutdown(t *testing.T) {
+	p := NewProcess(Entry{Name: "web", Command: "sleep 60"}, 0)
+	p.outputMode = func() OutputMode { return OutputAll }
+
+	if err := p.Start(); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	go p.Read(io.Discard)
+
+	p.Shutdown()
+
+	select {
+	case <-p.done:
+	case <-time.After(200 * time.Millisecond):
+		t.Error("expected process to exit after SIGTERM")
+	}
+}
+
+func TestProcess_Wait(t *testing.T) {
+	// Use trap '' INT to ignore SIGINT
+	p := NewProcess(Entry{Name: "web", Command: "trap '' INT; sleep 60"}, 0)
+	p.outputMode = func() OutputMode { return OutputAll }
+
+	if err := p.Start(); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	go p.Read(io.Discard)
+
+	// Send SIGINT directly (not via Shutdown)
+	syscall.Kill(-p.cmd.Process.Pid, syscall.SIGINT)
+
+	p.Wait(200 * time.Millisecond)
+
+	if p.ExitCode != -1 {
+		t.Errorf("expected exit code -1 from SIGKILL, got %d", p.ExitCode)
+	}
+}
+
+func TestProcess_Write(t *testing.T) {
+	r, w, _ := os.Pipe()
+	p := NewProcess(Entry{Name: "web", Command: "cmd"}, 0)
+	p.master = w
+
+	p.Write([]byte("hello"))
+	w.Close()
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	if diff := cmp.Diff("hello", buf.String()); diff != "" {
+		t.Errorf("written data mismatch (-expected +got):\n%s", diff)
+	}
 }

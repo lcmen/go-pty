@@ -138,15 +138,20 @@ Test-driven implementation. Each phase follows red-green-refactor: write failing
 
 ---
 
-## Phase 5b — Keystroke Forwarding `[ ]`
+## Phase 5b — Keystroke Forwarding `[x]`
 
 **Goal:** Forward stdin to attached process's PTY master.
 
-**Files:** `gopty/controller.go` (extend), `gopty/controller_test.go` (extend)
+**Files:** `gopty/process.go` (extend), `gopty/process_test.go` (extend), `gopty/controller.go` (extend), `gopty/controller_test.go` (extend)
 
 ### Implement:
-- [ ] In `handleAttached`, forward non-ctrl+] bytes to `p.master.Write()`
-- [ ] ctrl+c in attached mode forwarded to process (not go-pty shutdown)
+- [x] `Process.Write(buf)` method wrapping `p.master.Write(buf)`
+- [x] In `handleAttached`, forward non-ctrl+] bytes via `c.manager.Attached().Write(buf)`
+- [x] ctrl+c in attached mode forwarded to process (not go-pty shutdown)
+
+### Tests:
+- [x] `Process.Write` sends bytes to master
+- [x] Controller forwards keystrokes (including ctrl+c) to attached process
 
 ---
 

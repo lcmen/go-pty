@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -28,14 +29,14 @@ func main() {
 	procfilePath := flag.String("f", "./Procfile", "path to Procfile")
 	flag.Parse()
 
-	m, err := initManager(*procfilePath)
+	fmt.Printf("%s\n\n", banner)
+	fmt.Printf("Starting process(es) from %s:\n\n", *procfilePath)
+
+	m, err := initManager(*procfilePath, os.Stdout)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-
-	fmt.Printf("%s\n\n", banner)
-	fmt.Printf("Starting process(es) from %s:\n\n", *procfilePath)
 
 	restore := rawMode(os.Stdin)
 	defer restore()
@@ -48,7 +49,7 @@ func main() {
 	m.Wait()
 }
 
-func initManager(path string) (*gopty.Manager, error) {
+func initManager(path string, stdout io.Writer) (*gopty.Manager, error) {
 	pf, err := gopty.Open(path)
 	if err != nil {
 		return nil, err
@@ -59,7 +60,7 @@ func initManager(path string) (*gopty.Manager, error) {
 		return nil, err
 	}
 
-	m := gopty.NewManager(entries, os.Stdout)
+	m := gopty.NewManager(entries, stdout)
 	if err := m.StartAll(); err != nil {
 		return nil, err
 	}

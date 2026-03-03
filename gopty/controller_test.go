@@ -3,6 +3,7 @@ package gopty
 import (
 	"bytes"
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -43,14 +44,33 @@ func TestController_Run(t *testing.T) {
 		if c.err != io.EOF {
 			t.Errorf("expected err to be io.EOF, got %v", c.err)
 		}
-		if !strings.Contains(output, "attached to web") {
+		if !strings.Contains(output, "Attached to web") {
 			t.Errorf("expected attach message - got: %s", output)
 		}
-		if !strings.Contains(output, "detached from web") {
+		if !strings.Contains(output, "Detached from web") {
 			t.Error("expected detach message")
 		}
 		if m.Attached() != nil {
 			t.Error("expected no process attached after detach")
+		}
+	})
+
+	t.Run("keystrokes are forwarded to attached process", func(t *testing.T) {
+		r, w, _ := os.Pipe()
+		m := stubManager()
+		m.processes[0].master = w
+		m.Attach(0)
+		// Type 'a', 'b', ctrl+c (ignored in attached mode), then ctrl+] to detach, ctrl+c to shutdown
+		c := NewController(m, stubKeypresses('a', 'b', byteCtrlC, byteCtrlBracket, byteCtrlC), io.Discard)
+
+		c.Run()
+
+		w.Close()
+		var buf bytes.Buffer
+		buf.ReadFrom(r)
+		// Expect '\n' from Attach(), then 'ab' (ctrl+c is ignored)
+		if diff := strings.Compare("\nab", buf.String()); diff != 0 {
+			t.Errorf("forwarded data mismatch: expected %q, got %q", "\nab", buf.String())
 		}
 	})
 }
