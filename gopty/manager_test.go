@@ -170,10 +170,10 @@ func TestManager_Shutdown(t *testing.T) {
 	m.Shutdown()
 
 	output := buf.String()
-	if !strings.Contains(output, "[web]\033[0m exited (code") {
+	if !strings.Contains(output, "[web]\033[0m exited") {
 		t.Errorf("expected web exit message, got %q", output)
 	}
-	if !strings.Contains(output, "[worker]\033[0m exited (code") {
+	if !strings.Contains(output, "[worker]\033[0m exited") {
 		t.Errorf("expected worker exit message, got %q", output)
 	}
 }

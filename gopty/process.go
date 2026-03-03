@@ -65,8 +65,13 @@ func (p *Process) Start() error {
 func (p *Process) Read(w io.Writer) {
 	p.readLoop(w)
 
-	p.ExitCode = p.exit()
-	fmt.Fprintf(w, "%s exited (code %d)\r\n", p.prefix(), p.ExitCode)
+	exitCode, signal := p.exit()
+	p.ExitCode = exitCode
+	if signal != "" {
+		fmt.Fprintf(w, "%s exited (signal %s)\r\n", p.prefix(), signal)
+	} else {
+		fmt.Fprintf(w, "%s exited (code %d)\r\n", p.prefix(), p.ExitCode)
+	}
 	close(p.done)
 }
 
@@ -128,7 +133,7 @@ func (p *Process) Wait(timeout ...time.Duration) {
 		t = timeout[0]
 	}
 
-	// Wait for graceful exit, escalate to SIGKILL after timeout
+	// Wait for graceful exit (from Read), then escalate to SIGKILL after timeout
 	select {
 	case <-p.done:
 	case <-time.After(t):
@@ -137,14 +142,17 @@ func (p *Process) Wait(timeout ...time.Duration) {
 	}
 }
 
-func (p *Process) exit() int {
+func (p *Process) exit() (int, string) {
 	if err := p.cmd.Wait(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return exitErr.ExitCode()
+			if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+				return -1, ws.Signal().String()
+			}
+			return exitErr.ExitCode(), ""
 		}
 	}
 
-	return 0
+	return 0, ""
 }
 
 func (p *Process) prefix() string {
