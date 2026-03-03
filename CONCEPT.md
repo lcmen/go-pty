@@ -115,25 +115,24 @@ sh (pid 100, pgid 100)
 
 If we only `kill(101)`, the puma workers become orphans and keep running. That's a resource leak.
 
-**Process groups** solve this. `pty.Start()` internally calls `setsid` which creates a new session and process group for each child. On shutdown, go-pty sends SIGTERM to each process via `p.cmd.Process.Signal(syscall.SIGTERM)`.
-
-Note: We don't use `Setpgid: true` because it conflicts with `pty.Start()`'s internal `setsid` call (particularly on WSL2). The `exec` prefix in `sh -c "exec <command>"` ensures there's no extra `sh` wrapper, so the SIGTERM reaches the actual command.
+**Process groups** solve this. `pty.Start()` internally calls `setsid` which creates a new session and process group for each child. On shutdown, go-pty sends SIGINT to the entire process group via `syscall.Kill(-pid, syscall.SIGINT)` (negative pid targets the group). If a process doesn't exit within 5 seconds, it escalates to SIGKILL.
 
 ---
 
 ## Signals
 
-Signals are the kernel's way of poking a process. The relevant ones for pty-mux:
+Signals are the kernel's way of poking a process. The relevant ones for go-pty:
 
 | Signal | Default action | Sent when |
 |--------|---------------|-----------|
 | SIGINT | Terminate | User presses Ctrl+C (in cooked mode) |
 | SIGTERM | Terminate | Polite "please exit" from another process |
+| SIGKILL | Terminate (cannot be caught) | Force kill — last resort |
 | SIGWINCH | Ignored | Terminal window is resized |
 | SIGTSTP | Suspend | User presses Ctrl+Z (in cooked mode) |
 
 go-pty listens for:
-- **SIGINT / SIGTERM** — triggers graceful shutdown (kill all children, restore terminal, exit)
+- **SIGINT / SIGTERM** — triggers graceful shutdown (SIGINT to all children, wait up to 5s, SIGKILL stragglers, restore terminal, exit)
 - **SIGWINCH** — propagates the new terminal size to all child PTYs so they reflow their output
 
 ---
@@ -153,7 +152,7 @@ Without this propagation, child processes would think the terminal is still the 
 
 ---
 
-## `sh -c "exec <command>"` — Why the Wrapper?
+## `sh -c "<command>"` — Why the Wrapper?
 
 Procfile commands can be complex:
 
@@ -164,26 +163,7 @@ worker: bundle exec sidekiq -c 5 && echo "done"
 
 These use shell features (env vars, `&&`). We can't pass them directly to `exec.Command` — that takes a binary path and arguments, not shell syntax. So we use `sh -c` to let the shell parse the command.
 
-But `sh -c "bundle exec rails"` creates an extra process:
-
-```
-sh (pid 100)         ← unnecessary wrapper
-  └── rails (pid 101)
-```
-
-The `exec` prefix replaces the shell with the actual command:
-
-```
-sh -c "exec bundle exec rails"
-
-# sh starts, then exec replaces it:
-rails (pid 100)      ← sh is gone, rails took its place
-```
-
-This matters because:
-- `kill(-pid)` targets the right process group leader
-- No zombie `sh` processes hanging around
-- One fewer process per Procfile entry
+Since `pty.Start()` calls `setsid` to create a new session and process group, `kill(-pid)` targets the entire process group — both the `sh` wrapper and all its children.
 
 ---
 
@@ -233,13 +213,19 @@ Note: concurrent writes to stdout from multiple goroutines can still interleave.
 
 ## Line Scanning
 
-PTY reads return arbitrary chunks of data, not neat lines. go-pty uses `bufio.Scanner` to handle this — it reads from the PTY master and yields complete lines (split on `\n`), handling the buffering internally:
+PTY reads return arbitrary chunks of data, not neat lines. go-pty wraps the PTY master in a `bufio.Reader` and uses `ReadBytes('\n')` to yield complete lines in `OutputAll` mode. In `OutputAttached` and `OutputIgnored` modes, it reads raw chunks with `Read()` instead — attached output needs to be forwarded immediately (no line buffering), and ignored output just needs to be drained:
 
 ```go
-scanner := bufio.NewScanner(p.master)
-for scanner.Scan() {
-    line := scanner.Text()
-    // route based on outputMode
+switch p.outputMode() {
+case OutputAll:
+    line, err = p.reader.ReadBytes('\n')
+    // prefix and write line
+case OutputAttached:
+    n, err = p.reader.Read(buf)
+    // write raw bytes
+case OutputIgnored:
+    n, err = p.reader.Read(buf)
+    // discard
 }
 ```
 
