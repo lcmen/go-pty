@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 	"syscall"
 	"time"
 
@@ -29,21 +28,26 @@ var colorPalette = []string{
 }
 
 type Process struct {
-	Color    string
-	ExitCode int
+	Color string
 	Entry
-	cmd        *exec.Cmd
-	master     *os.File
-	reader     *bufio.Reader
-	outputMode func() OutputMode
-	done       chan struct{}
+	ExitCode int
+	cmd      *exec.Cmd
+	done     chan struct{}
+	mode     func() OutputMode
+	prefix   string
+	pty      *os.File
+	reader   *bufio.Reader
+	stdout   io.Writer
 }
 
-func NewProcess(entry Entry, index int) *Process {
+func NewProcess(entry Entry, index int, stdout io.Writer) *Process {
+	color := colorPalette[index%len(colorPalette)]
 	return &Process{
-		Entry: entry,
-		Color: colorPalette[index%len(colorPalette)],
-		done:  make(chan struct{}),
+		Entry:  entry,
+		Color:  color,
+		done:   make(chan struct{}),
+		prefix: fmt.Sprintf("%s[%s]\033[0m", color, entry.Name),
+		stdout: stdout,
 	}
 }
 
@@ -56,62 +60,27 @@ func (p *Process) Start() error {
 	}
 
 	p.cmd = cmd
-	p.master = master
+	p.pty = master
 	p.reader = bufio.NewReader(master)
 
 	return nil
 }
 
-func (p *Process) Read(w io.Writer) {
-	p.readLoop(w)
+func (p *Process) Monitor() {
+	p.read()
 
 	exitCode, signal := p.exit()
 	p.ExitCode = exitCode
 	if signal != "" {
-		fmt.Fprintf(w, "%s exited (signal %s)\r\n", p.prefix(), signal)
+		fmt.Fprintf(p.stdout, "%s exited (signal %s)\r\n", p.prefix, signal)
 	} else {
-		fmt.Fprintf(w, "%s exited (code %d)\r\n", p.prefix(), p.ExitCode)
+		fmt.Fprintf(p.stdout, "%s exited (code %d)\r\n", p.prefix, p.ExitCode)
 	}
 	close(p.done)
 }
 
-func (p *Process) readLoop(w io.Writer) {
-	var err error
-	var line []byte
-	var n int
-
-	buf := make([]byte, 4096)
-
-	for {
-		switch p.outputMode() {
-		case OutputAll:
-			// Read and write line by line
-			line, err = p.reader.ReadBytes('\n')
-			if len(line) > 0 {
-				text := strings.TrimRight(string(line), "\r\n")
-				fmt.Fprintf(w, "%s %s\r\n", p.prefix(), text)
-			}
-
-		case OutputAttached:
-			// Read and write immediately to output
-			n, err = p.reader.Read(buf)
-			if n > 0 {
-				w.Write(buf[:n])
-			}
-
-		case OutputIgnored:
-			// Read and discard to prevent child process from blocking
-			n, err = p.reader.Read(buf)
-		}
-
-		if err != nil {
-			break
-		}
-	}
-}
-
 func (p *Process) Write(buf []byte) (int, error) {
-	return p.master.Write(buf)
+	return p.pty.Write(buf)
 }
 
 func (p *Process) Shutdown() {
@@ -123,20 +92,15 @@ func (p *Process) Shutdown() {
 	syscall.Kill(-p.cmd.Process.Pid, syscall.SIGINT)
 }
 
-func (p *Process) Wait(timeout ...time.Duration) {
+func (p *Process) Kill(timeout time.Duration) {
 	if p.cmd == nil || p.cmd.Process == nil {
 		return
 	}
 
-	t := 5 * time.Second
-	if len(timeout) > 0 {
-		t = timeout[0]
-	}
-
-	// Wait for graceful exit (from Read), then escalate to SIGKILL after timeout
+	// Wait for graceful exit, escalate to SIGKILL after timeout
 	select {
 	case <-p.done:
-	case <-time.After(t):
+	case <-time.After(timeout):
 		syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL)
 		<-p.done
 	}
@@ -155,11 +119,36 @@ func (p *Process) exit() (int, string) {
 	return 0, ""
 }
 
-func (p *Process) prefix() string {
-	switch p.outputMode() {
-	case OutputAttached:
-		return fmt.Sprintf("%s[%s - attached]\033[0m", p.Color, p.Entry.Name)
-	default:
-		return fmt.Sprintf("%s[%s]\033[0m", p.Color, p.Entry.Name)
+func (p *Process) read() {
+	var err error
+	var line []byte
+	var n int
+
+	buf := make([]byte, 4096)
+
+	for {
+		switch p.mode() {
+		case OutputAll:
+			// Read and write line by line
+			line, err = p.reader.ReadBytes('\n')
+			if len(line) > 0 {
+				writeLine(p.stdout, p.prefix, line)
+			}
+
+		case OutputAttached:
+			// Read and write immediately to output
+			n, err = p.reader.Read(buf)
+			if n > 0 {
+				p.stdout.Write(buf[:n])
+			}
+
+		case OutputIgnored:
+			// Read and discard to prevent child process from blocking
+			n, err = p.reader.Read(buf)
+		}
+
+		if err != nil {
+			break
+		}
 	}
 }

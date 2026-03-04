@@ -7,6 +7,30 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+func TestWriteLine(t *testing.T) {
+	written := func(prefix, line string) string {
+		var buf bytes.Buffer
+		writeLine(&buf, prefix, []byte(line))
+		return buf.String()
+	}
+
+	if diff := cmp.Diff("[web] hello\r\n", written("[web]", "hello\r\n")); diff != "" {
+		t.Errorf("mismatch (-expected +got):\n%s", diff)
+	}
+
+	if diff := cmp.Diff("[web] hello\r\n", written("[web]", "hello\n")); diff != "" {
+		t.Errorf("mismatch (-expected +got):\n%s", diff)
+	}
+
+	if diff := cmp.Diff("[web] hello\r\n", written("[web]", "hello\r")); diff != "" {
+		t.Errorf("mismatch (-expected +got):\n%s", diff)
+	}
+
+	if diff := cmp.Diff("[web] hello\r\n", written("[web]", "hello")); diff != "" {
+		t.Errorf("mismatch (-expected +got):\n%s", diff)
+	}
+}
+
 func TestReadBytes(t *testing.T) {
 	t.Run("reads up to n bytes", func(t *testing.T) {
 		r := bytes.NewReader([]byte("hello"))

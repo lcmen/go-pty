@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/creack/pty"
 )
@@ -29,8 +30,8 @@ func NewManager(entries []Entry, stdout io.Writer) *Manager {
 	m := &Manager{stdout: stdout}
 
 	for i, entry := range entries {
-		p := NewProcess(entry, i)
-		p.outputMode = m.outputMode(p)
+		p := NewProcess(entry, i, m.stdout)
+		p.mode = m.mode(p)
 		m.processes = append(m.processes, p)
 	}
 
@@ -44,7 +45,7 @@ func (m *Manager) StartAll() error {
 		}
 
 		m.wg.Go(func() {
-			p.Read(m.stdout)
+			p.Monitor()
 		})
 	}
 
@@ -87,10 +88,11 @@ func (m *Manager) Shutdown() {
 	}
 
 	// Wait for all processes to exit
+	timeout := 5 * time.Second
 	var wg sync.WaitGroup
 	for _, p := range m.processes {
 		wg.Go(func() {
-			p.Wait()
+			p.Kill(timeout)
 		})
 	}
 	wg.Wait()
@@ -98,8 +100,8 @@ func (m *Manager) Shutdown() {
 
 func (m *Manager) ResizeAll(ws *pty.Winsize) {
 	for _, p := range m.processes {
-		if p.master != nil {
-			pty.Setsize(p.master, ws)
+		if p.pty != nil {
+			pty.Setsize(p.pty, ws)
 		}
 	}
 }
@@ -116,7 +118,7 @@ func (m *Manager) WriteToAttached(buf []byte) (int, error) {
 	return p.Write(buf)
 }
 
-func (m *Manager) outputMode(p *Process) func() OutputMode {
+func (m *Manager) mode(p *Process) func() OutputMode {
 	return func() OutputMode {
 		attached := m.Attached()
 		if attached == nil {

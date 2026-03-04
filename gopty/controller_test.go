@@ -58,7 +58,7 @@ func TestController_Run(t *testing.T) {
 	t.Run("keystrokes are forwarded to attached process", func(t *testing.T) {
 		r, w, _ := os.Pipe()
 		m := stubManager()
-		m.processes[0].master = w
+		m.processes[0].pty = w
 		m.Attach(0)
 		// Type 'a', 'b', ctrl+c (ignored in attached mode), then ctrl+] to detach, ctrl+c to shutdown
 		c := NewController(m, stubKeypresses('a', 'b', byteCtrlC, byteCtrlBracket, byteCtrlC), io.Discard)
