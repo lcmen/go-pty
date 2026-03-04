@@ -30,26 +30,24 @@ var colorPalette = []string{
 type Process struct {
 	Color string
 	Entry
-	ExitCode       int
-	cmd            *exec.Cmd
-	done           chan struct{}
-	mode           func() OutputMode
-	prefixAll      string
-	prefixAttached string
-	pty            *os.File
-	reader         *bufio.Reader
-	stdout         io.Writer
+	ExitCode int
+	cmd      *exec.Cmd
+	done     chan struct{}
+	mode     func() OutputMode
+	prefix   string
+	pty      *os.File
+	reader   *bufio.Reader
+	stdout   io.Writer
 }
 
 func NewProcess(entry Entry, index int, stdout io.Writer) *Process {
 	color := colorPalette[index%len(colorPalette)]
 	return &Process{
-		Entry:          entry,
-		Color:          color,
-		done:           make(chan struct{}),
-		prefixAll:      fmt.Sprintf("%s[%s]\033[0m", color, entry.Name),
-		prefixAttached: fmt.Sprintf("%s[%s - attached]\033[0m", color, entry.Name),
-		stdout:         stdout,
+		Entry:  entry,
+		Color:  color,
+		done:   make(chan struct{}),
+		prefix: fmt.Sprintf("%s[%s]\033[0m", color, entry.Name),
+		stdout: stdout,
 	}
 }
 
@@ -74,9 +72,9 @@ func (p *Process) Monitor() {
 	exitCode, signal := p.exit()
 	p.ExitCode = exitCode
 	if signal != "" {
-		fmt.Fprintf(p.stdout, "%s exited (signal %s)\r\n", p.prefix(), signal)
+		fmt.Fprintf(p.stdout, "%s exited (signal %s)\r\n", p.prefix, signal)
 	} else {
-		fmt.Fprintf(p.stdout, "%s exited (code %d)\r\n", p.prefix(), p.ExitCode)
+		fmt.Fprintf(p.stdout, "%s exited (code %d)\r\n", p.prefix, p.ExitCode)
 	}
 	close(p.done)
 }
@@ -121,13 +119,6 @@ func (p *Process) exit() (int, string) {
 	return 0, ""
 }
 
-func (p *Process) prefix() string {
-	if p.mode() == OutputAttached {
-		return p.prefixAttached
-	}
-	return p.prefixAll
-}
-
 func (p *Process) read() {
 	var err error
 	var line []byte
@@ -141,7 +132,7 @@ func (p *Process) read() {
 			// Read and write line by line
 			line, err = p.reader.ReadBytes('\n')
 			if len(line) > 0 {
-				writeLine(p.stdout, p.prefix(), line)
+				writeLine(p.stdout, p.prefix, line)
 			}
 
 		case OutputAttached:

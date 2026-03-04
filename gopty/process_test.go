@@ -71,7 +71,7 @@ func TestProcess_Monitor(t *testing.T) {
 		p, buf := stubProcess(Entry{Name: "web", Command: "cmd"}, OutputAttached, "line1\nline2\n")
 		p.Monitor()
 
-		expected := "line1\nline2\n\033[31m[web - attached]\033[0m exited (code 0)\r\n"
+		expected := "line1\nline2\n\033[31m[web]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
 			t.Errorf("output mismatch (-expected +got):\n%s", diff)
 		}
