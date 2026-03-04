@@ -1,6 +1,7 @@
 package gopty
 
 import (
+	"fmt"
 	"io"
 )
 
@@ -13,6 +14,14 @@ const (
 	seqArrowUp   = "\x1b[A"
 	seqArrowDown = "\x1b[B"
 )
+
+func writeLine(w io.Writer, prefix string, line []byte) {
+	// Strip trailing \r and \n by re-slicing (no allocation) to normalize line endings
+	for len(line) > 0 && (line[len(line)-1] == '\r' || line[len(line)-1] == '\n') {
+		line = line[:len(line)-1]
+	}
+	fmt.Fprintf(w, "%s %s\r\n", prefix, line)
+}
 
 func readByte(r io.Reader) (byte, error) {
 	buf, err := readBytes(r, 1)

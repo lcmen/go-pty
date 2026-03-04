@@ -15,11 +15,15 @@
  \__, |\___/      | .__/ \__|\__, |
  |___/            |_|        |___/</pre>
 
-    <p class="text-lg text-gray-300 mb-8">
-      A process manager that runs commands from a Procfile, each in its own pseudoterminal.
-      Attach to any process for full interactive access &mdash; use debuggers like
-      <code class="text-green-400">binding.irb</code>, <code class="text-green-400">pdb</code>,
-      or <code class="text-green-400">debugger</code> inside your dev environment.
+    <p class="text-lg text-gray-300 mb-4">
+      A process manager that runs commands from a Procfile, each in its own pseudoterminal (PTY).
+      Every process gets a real terminal, so you can attach to any running process and use
+      interactive debuggers and REPLs directly.
+    </p>
+
+    <p class="text-gray-400 text-sm mb-8">
+      Press <kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs text-gray-300">ctrl+]</kbd> to attach to a process for a full interactive terminal session.
+      Press it again to detach and return to the combined output view.
     </p>
 
     <div class="flex gap-4 mb-12">
@@ -60,7 +64,7 @@ go-pty -f Procfile</code></pre>
     </table>
 
     <footer class="text-gray-600 text-sm">
-      MIT License
+      <a href="https://github.com/lcmen/go-pty/blob/main/LICENSE" class="hover:text-gray-400 transition">MIT License</a>
     </footer>
   </div>
 </body>

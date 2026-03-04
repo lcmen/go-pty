@@ -27,7 +27,7 @@ func TestNewProcess(t *testing.T) {
 	}
 }
 
-func TestProcess_Read(t *testing.T) {
+func TestProcess_Monitor(t *testing.T) {
 	stubProcess := func(entry Entry, mode OutputMode, input string, exitCodes ...int) *Process {
 		r, w, _ := os.Pipe()
 
@@ -48,7 +48,7 @@ func TestProcess_Read(t *testing.T) {
 		p.cmd = cmd
 		p.master = r
 		p.reader = bufio.NewReader(r)
-		p.outputMode = func() OutputMode { return mode }
+		p.mode = func() OutputMode { return mode }
 
 		w.WriteString(input)
 		w.Close()
@@ -60,7 +60,7 @@ func TestProcess_Read(t *testing.T) {
 		p := stubProcess(Entry{Name: "web", Command: "cmd"}, OutputAll, "line1\nline2\n")
 
 		var buf bytes.Buffer
-		p.Read(&buf)
+		p.Monitor(&buf)
 
 		expected := "\033[31m[web]\033[0m line1\r\n\033[31m[web]\033[0m line2\r\n\033[31m[web]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -72,7 +72,7 @@ func TestProcess_Read(t *testing.T) {
 		p := stubProcess(Entry{Name: "web", Command: "cmd"}, OutputAttached, "line1\nline2\n")
 
 		var buf bytes.Buffer
-		p.Read(&buf)
+		p.Monitor(&buf)
 
 		expected := "line1\nline2\n\033[31m[web - attached]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -84,7 +84,7 @@ func TestProcess_Read(t *testing.T) {
 		p := stubProcess(Entry{Name: "web", Command: "cmd"}, OutputIgnored, "line1\nline2\n")
 
 		var buf bytes.Buffer
-		p.Read(&buf)
+		p.Monitor(&buf)
 
 		expected := "\033[31m[web]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -96,7 +96,7 @@ func TestProcess_Read(t *testing.T) {
 		p := stubProcess(Entry{Name: "web", Command: "cmd"}, OutputAll, "hello\n", 1)
 
 		var buf bytes.Buffer
-		p.Read(&buf)
+		p.Monitor(&buf)
 
 		expected := "\033[31m[web]\033[0m hello\r\n\033[31m[web]\033[0m exited (code 1)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -107,13 +107,13 @@ func TestProcess_Read(t *testing.T) {
 
 func TestProcess_Shutdown(t *testing.T) {
 	p := NewProcess(Entry{Name: "web", Command: "sleep 60"}, 0)
-	p.outputMode = func() OutputMode { return OutputAll }
+	p.mode = func() OutputMode { return OutputAll }
 
 	if err := p.Start(); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
-	go p.Read(io.Discard)
+	go p.Monitor(io.Discard)
 
 	p.Shutdown()
 
@@ -124,21 +124,21 @@ func TestProcess_Shutdown(t *testing.T) {
 	}
 }
 
-func TestProcess_Wait(t *testing.T) {
+func TestProcess_Kill(t *testing.T) {
 	// Use trap '' INT to ignore SIGINT
 	p := NewProcess(Entry{Name: "web", Command: "trap '' INT; sleep 60"}, 0)
-	p.outputMode = func() OutputMode { return OutputAll }
+	p.mode = func() OutputMode { return OutputAll }
 
 	if err := p.Start(); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
-	go p.Read(io.Discard)
+	go p.Monitor(io.Discard)
 
 	// Send SIGINT directly (not via Shutdown)
 	syscall.Kill(-p.cmd.Process.Pid, syscall.SIGINT)
 
-	p.Wait(200 * time.Millisecond)
+	p.Kill(200 * time.Millisecond)
 
 	if p.ExitCode != -1 {
 		t.Errorf("expected exit code -1 from SIGKILL, got %d", p.ExitCode)
