@@ -28,19 +28,20 @@ var colorPalette = []string{
 }
 
 type Process struct {
-	Color    string
+	Color string
 	Entry
-	ExitCode int
+	ExitCode       int
 	cmd            *exec.Cmd
 	done           chan struct{}
-	master         *os.File
-	mode     func() OutputMode
+	mode           func() OutputMode
 	prefixAll      string
 	prefixAttached string
+	pty            *os.File
 	reader         *bufio.Reader
+	stdout         io.Writer
 }
 
-func NewProcess(entry Entry, index int) *Process {
+func NewProcess(entry Entry, index int, stdout io.Writer) *Process {
 	color := colorPalette[index%len(colorPalette)]
 	return &Process{
 		Entry:          entry,
@@ -48,6 +49,7 @@ func NewProcess(entry Entry, index int) *Process {
 		done:           make(chan struct{}),
 		prefixAll:      fmt.Sprintf("%s[%s]\033[0m", color, entry.Name),
 		prefixAttached: fmt.Sprintf("%s[%s - attached]\033[0m", color, entry.Name),
+		stdout:         stdout,
 	}
 }
 
@@ -60,27 +62,27 @@ func (p *Process) Start() error {
 	}
 
 	p.cmd = cmd
-	p.master = master
+	p.pty = master
 	p.reader = bufio.NewReader(master)
 
 	return nil
 }
 
-func (p *Process) Monitor(w io.Writer) {
-	p.read(w)
+func (p *Process) Monitor() {
+	p.read()
 
 	exitCode, signal := p.exit()
 	p.ExitCode = exitCode
 	if signal != "" {
-		fmt.Fprintf(w, "%s exited (signal %s)\r\n", p.prefix(), signal)
+		fmt.Fprintf(p.stdout, "%s exited (signal %s)\r\n", p.prefix(), signal)
 	} else {
-		fmt.Fprintf(w, "%s exited (code %d)\r\n", p.prefix(), p.ExitCode)
+		fmt.Fprintf(p.stdout, "%s exited (code %d)\r\n", p.prefix(), p.ExitCode)
 	}
 	close(p.done)
 }
 
 func (p *Process) Write(buf []byte) (int, error) {
-	return p.master.Write(buf)
+	return p.pty.Write(buf)
 }
 
 func (p *Process) Shutdown() {
@@ -126,7 +128,7 @@ func (p *Process) prefix() string {
 	return p.prefixAll
 }
 
-func (p *Process) read(w io.Writer) {
+func (p *Process) read() {
 	var err error
 	var line []byte
 	var n int
@@ -139,14 +141,14 @@ func (p *Process) read(w io.Writer) {
 			// Read and write line by line
 			line, err = p.reader.ReadBytes('\n')
 			if len(line) > 0 {
-				writeLine(w, p.prefix(), line)
+				writeLine(p.stdout, p.prefix(), line)
 			}
 
 		case OutputAttached:
 			// Read and write immediately to output
 			n, err = p.reader.Read(buf)
 			if n > 0 {
-				w.Write(buf[:n])
+				p.stdout.Write(buf[:n])
 			}
 
 		case OutputIgnored:

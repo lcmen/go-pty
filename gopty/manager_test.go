@@ -82,7 +82,7 @@ func TestManager_WriteToAttached(t *testing.T) {
 	t.Run("forwards bytes to attached process", func(t *testing.T) {
 		r, w, _ := os.Pipe()
 		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard)
-		m.processes[0].master = w
+		m.processes[0].pty = w
 		m.Attach(0)
 
 		m.WriteToAttached([]byte("hello"))
@@ -132,7 +132,7 @@ func TestManager_ResizeAll(t *testing.T) {
 	ws := &pty.Winsize{Rows: 40, Cols: 100}
 	m.ResizeAll(ws)
 
-	got, err := pty.GetsizeFull(m.processes[0].master)
+	got, err := pty.GetsizeFull(m.processes[0].pty)
 	if err != nil {
 		t.Fatalf("GetsizeFull failed: %v", err)
 	}

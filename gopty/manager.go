@@ -30,7 +30,7 @@ func NewManager(entries []Entry, stdout io.Writer) *Manager {
 	m := &Manager{stdout: stdout}
 
 	for i, entry := range entries {
-		p := NewProcess(entry, i)
+		p := NewProcess(entry, i, m.stdout)
 		p.mode = m.mode(p)
 		m.processes = append(m.processes, p)
 	}
@@ -45,7 +45,7 @@ func (m *Manager) StartAll() error {
 		}
 
 		m.wg.Go(func() {
-			p.Monitor(m.stdout)
+			p.Monitor()
 		})
 	}
 
@@ -100,8 +100,8 @@ func (m *Manager) Shutdown() {
 
 func (m *Manager) ResizeAll(ws *pty.Winsize) {
 	for _, p := range m.processes {
-		if p.master != nil {
-			pty.Setsize(p.master, ws)
+		if p.pty != nil {
+			pty.Setsize(p.pty, ws)
 		}
 	}
 }
