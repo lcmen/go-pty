@@ -20,10 +20,11 @@ const (
 )
 
 type Manager struct {
-	attached  atomic.Pointer[Process]
-	stdout    io.Writer
-	processes []*Process
-	wg        sync.WaitGroup
+	attached    atomic.Pointer[Process]
+	processes   []*Process
+	stdout      io.Writer
+	terminating sync.Once
+	wg          sync.WaitGroup
 }
 
 func NewManager(entries []Entry, stdout io.Writer) *Manager {
@@ -45,7 +46,10 @@ func (m *Manager) StartAll() error {
 		}
 
 		m.wg.Go(func() {
-			p.Monitor()
+			// If one of the process crashed, shutdown the whole manager
+			if err := p.Monitor(); err != nil {
+				m.Shutdown()
+			}
 		})
 	}
 
@@ -82,20 +86,20 @@ func (m *Manager) Detach() {
 }
 
 func (m *Manager) Shutdown() {
-	// Start shutting down processes
-	for _, p := range m.processes {
-		p.Shutdown()
-	}
+	m.terminating.Do(func() {
+		for _, p := range m.processes {
+			p.Shutdown()
+		}
 
-	// Wait for all processes to exit
-	timeout := 5 * time.Second
-	var wg sync.WaitGroup
-	for _, p := range m.processes {
-		wg.Go(func() {
-			p.Kill(timeout)
-		})
-	}
-	wg.Wait()
+		timeout := 5 * time.Second
+		var wg sync.WaitGroup
+		for _, p := range m.processes {
+			wg.Go(func() {
+				p.Kill(timeout)
+			})
+		}
+		wg.Wait()
+	})
 }
 
 func (m *Manager) ResizeAll(ws *pty.Winsize) {
