@@ -66,7 +66,7 @@ func (p *Process) Start() error {
 	return nil
 }
 
-func (p *Process) Monitor() {
+func (p *Process) Monitor() error {
 	p.read()
 
 	exitCode, signal := p.exit()
@@ -77,6 +77,11 @@ func (p *Process) Monitor() {
 		fmt.Fprintf(p.stdout, "%s exited (code %d)\r\n", p.prefix, p.ExitCode)
 	}
 	close(p.done)
+
+	if p.ExitCode != 0 {
+		return fmt.Errorf("process %s exited with code %d", p.Name, p.ExitCode)
+	}
+	return nil
 }
 
 func (p *Process) Write(buf []byte) (int, error) {

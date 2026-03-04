@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/google/go-cmp/cmp"
@@ -78,35 +79,6 @@ func TestManager_Attach(t *testing.T) {
 	})
 }
 
-func TestManager_WriteToAttached(t *testing.T) {
-	t.Run("forwards bytes to attached process", func(t *testing.T) {
-		r, w, _ := os.Pipe()
-		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard)
-		m.processes[0].pty = w
-		m.Attach(0)
-
-		m.WriteToAttached([]byte("hello"))
-		w.Close()
-
-		var buf bytes.Buffer
-		buf.ReadFrom(r)
-		// Expect '\n' from Attach(), then 'hello'
-		if buf.String() != "\nhello" {
-			t.Errorf("expected %q, got %q", "\nhello", buf.String())
-		}
-	})
-
-	t.Run("no-op when no process is attached", func(t *testing.T) {
-		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard)
-
-		n, err := m.WriteToAttached([]byte("hello"))
-
-		if n != 0 || err != nil {
-			t.Errorf("expected (0, nil), got (%d, %v)", n, err)
-		}
-	})
-}
-
 func TestManager_Detach(t *testing.T) {
 	m := NewManager([]Entry{
 		{Name: "web", Command: "cmd1"},
@@ -141,39 +113,125 @@ func TestManager_ResizeAll(t *testing.T) {
 	}
 }
 
-func TestManager_StartAll(t *testing.T) {
-	var buf bytes.Buffer
-	m := NewManager([]Entry{{Name: "web", Command: "echo hello"}}, &buf)
+func TestManager_Shutdown(t *testing.T) {
+	t.Run("shuts down all processes", func(t *testing.T) {
+		var buf syncBuffer
+		m := NewManager([]Entry{
+			{Name: "web", Command: "echo ready; trap 'exit 0' INT; sleep 60"},
+			{Name: "worker", Command: "echo ready; trap 'exit 0' INT; sleep 60"},
+		}, &buf)
 
-	if err := m.StartAll(); err != nil {
-		t.Fatalf("StartAll failed: %v", err)
-	}
-	m.Wait()
+		if err := m.StartAll(); err != nil {
+			t.Fatalf("StartAll failed: %v", err)
+		}
 
-	expected := "\033[31m[web]\033[0m hello\r\n\033[31m[web]\033[0m exited (code 0)\r\n"
-	if diff := cmp.Diff(expected, buf.String()); diff != "" {
-		t.Errorf("output mismatch (-expected +got):\n%s", diff)
-	}
+		waitFor(t, func() bool { return strings.Count(buf.String(), "ready") >= 2 })
+		m.Shutdown()
+
+		output := buf.String()
+		if !strings.Contains(output, "[web]\033[0m exited") {
+			t.Errorf("expected web exit message, got %q", output)
+		}
+		if !strings.Contains(output, "[worker]\033[0m exited") {
+			t.Errorf("expected worker exit message, got %q", output)
+		}
+	})
 }
 
-func TestManager_Shutdown(t *testing.T) {
-	var buf syncBuffer
-	m := NewManager([]Entry{
-		{Name: "web", Command: "trap 'exit 0' INT; sleep 60"},
-		{Name: "worker", Command: "trap 'exit 0' INT; sleep 60"},
-	}, &buf)
+func TestManager_StartAll(t *testing.T) {
+	t.Run("monitors process output", func(t *testing.T) {
+		var buf bytes.Buffer
+		m := NewManager([]Entry{{Name: "web", Command: "echo hello"}}, &buf)
 
-	if err := m.StartAll(); err != nil {
-		t.Fatalf("StartAll failed: %v", err)
-	}
+		if err := m.StartAll(); err != nil {
+			t.Fatalf("StartAll failed: %v", err)
+		}
+		m.Wait()
 
-	m.Shutdown()
+		expected := "\033[31m[web]\033[0m hello\r\n\033[31m[web]\033[0m exited (code 0)\r\n"
+		if diff := cmp.Diff(expected, buf.String()); diff != "" {
+			t.Errorf("output mismatch (-expected +got):\n%s", diff)
+		}
+	})
 
-	output := buf.String()
-	if !strings.Contains(output, "[web]\033[0m exited") {
-		t.Errorf("expected web exit message, got %q", output)
-	}
-	if !strings.Contains(output, "[worker]\033[0m exited") {
-		t.Errorf("expected worker exit message, got %q", output)
+	t.Run("shuts down all processes when one crashes", func(t *testing.T) {
+		var buf syncBuffer
+		m := NewManager([]Entry{
+			{Name: "web", Command: "echo ready; sleep 60"},
+			{Name: "worker", Command: "echo ready; exit 1"},
+		}, &buf)
+
+		if err := m.StartAll(); err != nil {
+			t.Fatalf("StartAll failed: %v", err)
+		}
+		m.Wait()
+
+		output := buf.String()
+		if !strings.Contains(output, "[worker]\033[0m exited (code 1)") {
+			t.Errorf("expected worker crash message, got %q", output)
+		}
+		if !strings.Contains(output, "[web]\033[0m exited (signal interrupt)") {
+			t.Errorf("expected web exit message, got %q", output)
+		}
+	})
+
+	t.Run("does not shut down when process exits cleanly", func(t *testing.T) {
+		var buf syncBuffer
+		m := NewManager([]Entry{
+			{Name: "web", Command: "echo ready; sleep 60"},
+			{Name: "worker", Command: "echo ready; exit 0"},
+		}, &buf)
+
+		if err := m.StartAll(); err != nil {
+			t.Fatalf("StartAll failed: %v", err)
+		}
+
+		waitFor(t, func() bool { return strings.Contains(buf.String(), "exited (code 0)") })
+
+		if strings.Contains(buf.String(), "[web]\033[0m exited") {
+			t.Error("web should still be running after worker's clean exit")
+		}
+
+		m.Shutdown()
+	})
+}
+
+func TestManager_WriteToAttached(t *testing.T) {
+	t.Run("forwards bytes to attached process", func(t *testing.T) {
+		r, w, _ := os.Pipe()
+		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard)
+		m.processes[0].pty = w
+		m.Attach(0)
+
+		m.WriteToAttached([]byte("hello"))
+		w.Close()
+
+		var buf bytes.Buffer
+		buf.ReadFrom(r)
+		// Expect '\n' from Attach(), then 'hello'
+		if buf.String() != "\nhello" {
+			t.Errorf("expected %q, got %q", "\nhello", buf.String())
+		}
+	})
+
+	t.Run("no-op when no process is attached", func(t *testing.T) {
+		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard)
+
+		n, err := m.WriteToAttached([]byte("hello"))
+
+		if n != 0 || err != nil {
+			t.Errorf("expected (0, nil), got (%d, %v)", n, err)
+		}
+	})
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatal("condition not met within 2s")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
