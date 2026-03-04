@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/google/go-cmp/cmp"
@@ -159,14 +160,15 @@ func TestManager_StartAll(t *testing.T) {
 func TestManager_Shutdown(t *testing.T) {
 	var buf syncBuffer
 	m := NewManager([]Entry{
-		{Name: "web", Command: "trap 'exit 0' INT; sleep 60"},
-		{Name: "worker", Command: "trap 'exit 0' INT; sleep 60"},
+		{Name: "web", Command: "echo ready; trap 'exit 0' INT; sleep 60"},
+		{Name: "worker", Command: "echo ready; trap 'exit 0' INT; sleep 60"},
 	}, &buf)
 
 	if err := m.StartAll(); err != nil {
 		t.Fatalf("StartAll failed: %v", err)
 	}
 
+	waitFor(t, func() bool { return strings.Count(buf.String(), "ready") >= 2 })
 	m.Shutdown()
 
 	output := buf.String()
@@ -175,5 +177,16 @@ func TestManager_Shutdown(t *testing.T) {
 	}
 	if !strings.Contains(output, "[worker]\033[0m exited") {
 		t.Errorf("expected worker exit message, got %q", output)
+	}
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatal("condition not met within 2s")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
