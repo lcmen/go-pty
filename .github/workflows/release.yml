@@ -37,7 +37,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
       - name: Release
         uses: ncipollo/release-action@v1
         with:
