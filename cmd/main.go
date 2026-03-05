@@ -51,12 +51,7 @@ func main() {
 }
 
 func initManager(path string, stdout io.Writer) (*gopty.Manager, error) {
-	pf, err := gopty.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	entries, err := pf.Parse()
+	entries, err := gopty.ParseProcfile(path)
 	if err != nil {
 		return nil, err
 	}
