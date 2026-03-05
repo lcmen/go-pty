@@ -37,16 +37,16 @@ func (c *Controller) Shutdown() {
 }
 
 func (c *Controller) Cleanup() {
-	// Drain any pending bytes from stdin (e.g. CPR responses from processes that queried during shutdown).
+	done := make(chan struct{})
 	go func() {
 		buf := make([]byte, 1024)
-		for {
-			if _, err := c.stdin.Read(buf); err != nil {
-				return
-			}
-		}
+		c.stdin.Read(buf)
+		close(done)
 	}()
-	time.Sleep(100 * time.Millisecond)
+	select {
+	case <-done:
+	case <-time.After(50 * time.Millisecond):
+	}
 }
 
 func (c *Controller) handleAllOut() {

@@ -72,7 +72,7 @@ func (m *Manager) Attach(index int) error {
 		return fmt.Errorf("process index %d out of range [0, %d)", index, len(m.processes))
 	}
 	m.attached.Store(m.processes[index])
-	// Send enter to trigger fresh prompt at correct position
+	// Send enter to trigger prompt refresh so cursor lands at the correct position
 	m.WriteToAttached([]byte("\n"))
 	return nil
 }
