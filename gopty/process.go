@@ -2,6 +2,7 @@ package gopty
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -136,20 +137,20 @@ func (p *Process) read() {
 		case OutputAll:
 			// Read and write line by line
 			line, err = p.reader.ReadBytes('\n')
-			if len(line) > 0 {
-				writeLine(p.stdout, p.prefix, line)
+			if len(line) > 0 && err == nil {
+				fmt.Fprintf(p.stdout, "%s %s\r\n", p.prefix, bytes.TrimRight(line, "\r\n"))
 			}
 
 		case OutputAttached:
 			// Read and write immediately to output
 			n, err = p.reader.Read(buf)
-			if n > 0 {
+			if n > 0 && err == nil {
 				p.stdout.Write(buf[:n])
 			}
 
 		case OutputIgnored:
 			// Read and discard to prevent child process from blocking
-			n, err = p.reader.Read(buf)
+			_, err = p.reader.Read(buf)
 		}
 
 		if err != nil {

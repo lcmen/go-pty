@@ -1,8 +1,11 @@
 package gopty
 
 import (
+	"bufio"
 	"fmt"
 	"io"
+	"os"
+	"strings"
 )
 
 const (
@@ -15,22 +18,47 @@ const (
 	seqArrowDown = "\x1b[B"
 )
 
-func writeLine(w io.Writer, prefix string, line []byte) {
-	// Strip trailing \r and \n by re-slicing (no allocation) to normalize line endings
-	for len(line) > 0 && (line[len(line)-1] == '\r' || line[len(line)-1] == '\n') {
-		line = line[:len(line)-1]
+func ParseProcfile(path string) ([]Entry, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open Procfile: %w", err)
 	}
-	fmt.Fprintf(w, "%s %s\r\n", prefix, line)
+	defer file.Close()
+
+	var entries []Entry
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+
+		name, command, ok := strings.Cut(line, ":")
+		if !ok {
+			return nil, fmt.Errorf("missing colon separator in: %q", line)
+		}
+
+		entries = append(entries, Entry{
+			Name:    strings.TrimSpace(name),
+			Command: strings.TrimSpace(command),
+		})
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read Procfile: %w", err)
+	}
+
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("no process defined in Procfile")
+	}
+
+	return entries, nil
 }
 
 func readByte(r io.Reader) (byte, error) {
-	buf, err := readBytes(r, 1)
-
-	if err != nil {
-		return 0, err
-	}
-
-	return buf[0], nil
+	var buf [1]byte
+	_, err := r.Read(buf[:])
+	return buf[0], err
 }
 
 func readBytes(r io.Reader, n int) ([]byte, error) {
