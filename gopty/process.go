@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sync"
 	"syscall"
 	"time"
 
@@ -37,6 +38,7 @@ type Process struct {
 	mode     func() OutputMode
 	prefix   string
 	pty      *os.File
+	ptyMu    sync.RWMutex
 	reader   *bufio.Reader
 	stdout   io.Writer
 }
@@ -68,6 +70,7 @@ func (p *Process) Start() error {
 }
 
 func (p *Process) Monitor() error {
+	defer p.close()
 	p.read()
 
 	exitCode, signal := p.exit()
@@ -81,11 +84,17 @@ func (p *Process) Monitor() error {
 
 	if p.ExitCode != 0 {
 		return fmt.Errorf("process %s exited with code %d", p.Name, p.ExitCode)
+	} else {
+		return nil
 	}
-	return nil
 }
 
 func (p *Process) Write(buf []byte) (int, error) {
+	p.ptyMu.RLock()
+	defer p.ptyMu.RUnlock()
+	if p.pty == nil {
+		return 0, fmt.Errorf("pty not initialized")
+	}
 	return p.pty.Write(buf)
 }
 
@@ -110,6 +119,24 @@ func (p *Process) Kill(timeout time.Duration) {
 		syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL)
 		<-p.done
 	}
+}
+
+func (p *Process) GetSize() (*pty.Winsize, error) {
+	p.ptyMu.RLock()
+	defer p.ptyMu.RUnlock()
+	if p.pty == nil {
+		return nil, fmt.Errorf("pty not initialized")
+	}
+	return pty.GetsizeFull(p.pty)
+}
+
+func (p *Process) SetSize(ws *pty.Winsize) error {
+	p.ptyMu.Lock()
+	defer p.ptyMu.Unlock()
+	if p.pty == nil {
+		return fmt.Errorf("pty not initialized")
+	}
+	return pty.Setsize(p.pty, ws)
 }
 
 func (p *Process) exit() (int, string) {
@@ -157,4 +184,15 @@ func (p *Process) read() {
 			break
 		}
 	}
+}
+
+func (p *Process) close() error {
+	p.ptyMu.Lock()
+	defer p.ptyMu.Unlock()
+	if p.pty == nil {
+		return nil
+	}
+	err := p.pty.Close()
+	p.pty = nil
+	return err
 }

@@ -14,8 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
-var cmpOpt = cmpopts.IgnoreUnexported(Process{})
-
+// Buffer that is goroutine safe for tests
 type syncBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
@@ -33,6 +32,12 @@ func (sb *syncBuffer) String() string {
 	return sb.buf.String()
 }
 
+func (sb *syncBuffer) ReadFrom(r io.Reader) (int64, error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.ReadFrom(r)
+}
+
 func TestNewManager(t *testing.T) {
 	m := NewManager([]Entry{
 		{Name: "web", Command: "echo hello"},
@@ -44,7 +49,7 @@ func TestNewManager(t *testing.T) {
 		{Entry: Entry{Name: "worker", Command: "echo world"}, Color: "\033[32m"},
 	}
 
-	if diff := cmp.Diff(expected, m.processes, cmpOpt); diff != "" {
+	if diff := cmp.Diff(expected, m.processes, cmpopts.IgnoreUnexported(Process{})); diff != "" {
 		t.Errorf("processes mismatch (-expected +got):\n%s", diff)
 	}
 }
@@ -99,15 +104,15 @@ func TestManager_ResizeAll(t *testing.T) {
 	if err := m.StartAll(); err != nil {
 		t.Fatalf("StartAll failed: %v", err)
 	}
-	defer m.Shutdown()
 
 	ws := &pty.Winsize{Rows: 40, Cols: 100}
 	m.ResizeAll(ws)
 
-	got, err := pty.GetsizeFull(m.processes[0].pty)
+	got, err := m.processes[0].GetSize()
 	if err != nil {
 		t.Fatalf("GetsizeFull failed: %v", err)
 	}
+	m.Shutdown()
 	if got.Rows != 40 || got.Cols != 100 {
 		t.Errorf("expected 40x100, got %dx%d", got.Rows, got.Cols)
 	}
@@ -140,7 +145,7 @@ func TestManager_Shutdown(t *testing.T) {
 
 func TestManager_StartAll(t *testing.T) {
 	t.Run("monitors process output", func(t *testing.T) {
-		var buf bytes.Buffer
+		var buf syncBuffer
 		m := NewManager([]Entry{{Name: "web", Command: "echo hello"}}, &buf)
 
 		if err := m.StartAll(); err != nil {
@@ -206,7 +211,7 @@ func TestManager_WriteToAttached(t *testing.T) {
 		m.WriteToAttached([]byte("hello"))
 		w.Close()
 
-		var buf bytes.Buffer
+		var buf syncBuffer
 		buf.ReadFrom(r)
 		// Expect '\n' from Attach(), then 'hello'
 		if buf.String() != "\nhello" {
