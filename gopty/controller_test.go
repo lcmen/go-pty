@@ -25,8 +25,8 @@ func TestController_Run(t *testing.T) {
 
 		c.Run()
 
-		if c.err != io.EOF {
-			t.Errorf("expected err to be io.EOF, got %v", c.err)
+		if c.err.Load() == nil {
+			t.Error("expected controller to be stopped")
 		}
 		if m.Attached() != nil {
 			t.Error("expected no process attached after esc")
@@ -41,8 +41,8 @@ func TestController_Run(t *testing.T) {
 		c.Run()
 
 		output := out.String()
-		if c.err != io.EOF {
-			t.Errorf("expected err to be io.EOF, got %v", c.err)
+		if c.err.Load() == nil {
+			t.Error("expected controller to be stopped")
 		}
 		if !strings.Contains(output, "Attached to web") {
 			t.Errorf("expected attach message - got: %s", output)

@@ -3,11 +3,12 @@ package gopty
 import (
 	"fmt"
 	"io"
+	"sync/atomic"
 	"time"
 )
 
 type Controller struct {
-	err     error
+	err     atomic.Pointer[error]
 	manager *Manager
 	stdin   io.Reader
 	stdout  io.Writer
@@ -22,7 +23,7 @@ func NewController(manager *Manager, stdin io.Reader, stdout io.Writer) *Control
 }
 
 func (c *Controller) Run() {
-	for c.err == nil {
+	for c.err.Load() == nil {
 		if c.manager.Attached() != nil {
 			c.handleAttached()
 		} else {
@@ -32,7 +33,8 @@ func (c *Controller) Run() {
 }
 
 func (c *Controller) Shutdown() {
-	c.err = io.EOF
+	eof := io.EOF
+	c.err.Store(&eof)
 	c.manager.Shutdown()
 }
 
@@ -52,7 +54,7 @@ func (c *Controller) Cleanup() {
 func (c *Controller) handleAllOut() {
 	buf, err := readByte(c.stdin)
 	if err != nil {
-		c.err = err
+		c.err.Store(&err)
 		return
 	}
 
@@ -74,7 +76,7 @@ func (c *Controller) handleAllOut() {
 func (c *Controller) handleAttached() {
 	buf, err := readByte(c.stdin)
 	if err != nil {
-		c.err = err
+		c.err.Store(&err)
 		return
 	}
 

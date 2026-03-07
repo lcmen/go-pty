@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -38,12 +39,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	restore := rawMode(os.Stdin)
+
+	defer cancel()
 	defer restore()
 
 	c := gopty.NewController(m, os.Stdin, os.Stdout)
-	listenResize(m.ResizeAll)
-	listenTerm(c.Shutdown)
+	listenResize(ctx, m.ResizeAll)
+	listenTerm(ctx, c.Shutdown)
 
 	go c.Run()
 	m.Wait()
@@ -64,25 +68,36 @@ func initManager(path string, stdout io.Writer) (*gopty.Manager, error) {
 	return m, nil
 }
 
-func listenResize(handler func(*pty.Winsize)) {
+func listenResize(ctx context.Context, handler func(*pty.Winsize)) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGWINCH)
 	go func() {
-		for range sigCh {
-			ws, err := pty.GetsizeFull(os.Stdin)
-			if err == nil {
-				handler(ws)
+		defer signal.Stop(sigCh)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-sigCh:
+				ws, err := pty.GetsizeFull(os.Stdin)
+				if err == nil {
+					handler(ws)
+				}
 			}
 		}
 	}()
 }
 
-func listenTerm(handler func()) {
+func listenTerm(ctx context.Context, handler func()) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		<-sigCh
-		handler()
+		defer signal.Stop(sigCh)
+		select {
+		case <-ctx.Done():
+			return
+		case <-sigCh:
+			handler()
+		}
 	}()
 }
 

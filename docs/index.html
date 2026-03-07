@@ -57,14 +57,18 @@
       <h2 class="text-xl font-semibold mb-4">Quick start</h2>
 
       <code class="block bg-gray-900 rounded p-4 text-sm mb-8 overflow-x-auto">
-        <span class="text-gray-500"># Install (Linux/macOS)</span><br />
-        OS=$(uname -s | tr A-Z a-z)
+        <span class="text-gray-500"># Install (macOS)</span><br />
+        brew tap lcmen/extra
         <br />
+        brew install go-pty
+        <br />
+        <br />
+        <span class="text-gray-500"># Install (Linux)</span><br />
         ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
         <br />
         URL=https://github.com/lcmen/go-pty/releases/latest/download
         <br />
-        curl -fsSL $URL/go-pty-$OS-$ARCH -o ~/.local/bin/go-pty
+        curl -fsSL $URL/go-pty-linux-$ARCH -o ~/.local/bin/go-pty
         <br />
         chmod +x ~/.local/bin/go-pty
         <br />

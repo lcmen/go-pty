@@ -81,8 +81,9 @@ func (p *Process) Monitor() error {
 
 	if p.ExitCode != 0 {
 		return fmt.Errorf("process %s exited with code %d", p.Name, p.ExitCode)
+	} else {
+		return nil
 	}
-	return nil
 }
 
 func (p *Process) Write(buf []byte) (int, error) {
