@@ -87,16 +87,14 @@ func (m *Manager) Detach() {
 
 func (m *Manager) Shutdown() {
 	m.terminating.Do(func() {
-		for _, p := range m.processes {
-			p.Shutdown()
-		}
-
 		timeout := 5 * time.Second
 		var wg sync.WaitGroup
 		for _, p := range m.processes {
-			wg.Go(func() {
-				p.Kill(timeout)
-			})
+			wg.Add(1)
+			go func(p *Process) {
+				defer wg.Done()
+				p.Shutdown(timeout)
+			}(p)
 		}
 		wg.Wait()
 	})

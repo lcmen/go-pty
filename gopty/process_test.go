@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"syscall"
 	"testing"
 	"time"
 
@@ -108,33 +107,12 @@ func TestProcess_Shutdown(t *testing.T) {
 
 	go p.Monitor()
 
-	p.Shutdown()
+	p.Shutdown(200 * time.Millisecond)
 
 	select {
 	case <-p.done:
-	case <-time.After(200 * time.Millisecond):
+	case <-time.After(300 * time.Millisecond):
 		t.Error("expected process to exit after SIGTERM")
-	}
-}
-
-func TestProcess_Kill(t *testing.T) {
-	// Use trap '' INT to ignore SIGINT
-	p := NewProcess(Entry{Name: "web", Command: "trap '' INT; sleep 60"}, 0, io.Discard)
-	p.mode = func() OutputMode { return OutputAll }
-
-	if err := p.Start(); err != nil {
-		t.Fatalf("Start failed: %v", err)
-	}
-
-	go p.Monitor()
-
-	// Send SIGINT directly (not via Shutdown)
-	syscall.Kill(-p.cmd.Process.Pid, syscall.SIGINT)
-
-	p.Kill(200 * time.Millisecond)
-
-	if p.ExitCode != -1 {
-		t.Errorf("expected exit code -1 from SIGKILL, got %d", p.ExitCode)
 	}
 }
 

@@ -75,18 +75,21 @@ func (p *Process) Monitor() error {
 
 	exitCode, signal := p.exit()
 	p.ExitCode = exitCode
+
 	if signal != "" {
 		fmt.Fprintf(p.stdout, "%s exited (signal %s)\r\n", p.prefix, signal)
 	} else {
 		fmt.Fprintf(p.stdout, "%s exited (code %d)\r\n", p.prefix, p.ExitCode)
 	}
+
+	// Signal graceful shutdown
 	close(p.done)
 
-	if p.ExitCode != 0 {
+	if exitCode != 0 {
 		return fmt.Errorf("process %s exited with code %d", p.Name, p.ExitCode)
-	} else {
-		return nil
 	}
+
+	return nil
 }
 
 func (p *Process) Write(buf []byte) (int, error) {
@@ -98,19 +101,13 @@ func (p *Process) Write(buf []byte) (int, error) {
 	return p.pty.Write(buf)
 }
 
-func (p *Process) Shutdown() {
+func (p *Process) Shutdown(timeout time.Duration) {
 	if p.cmd == nil || p.cmd.Process == nil {
 		return
 	}
 
 	// Send SIGINT for graceful shutdown
 	syscall.Kill(-p.cmd.Process.Pid, syscall.SIGINT)
-}
-
-func (p *Process) Kill(timeout time.Duration) {
-	if p.cmd == nil || p.cmd.Process == nil {
-		return
-	}
 
 	// Wait for graceful exit, escalate to SIGKILL after timeout
 	select {
