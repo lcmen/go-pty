@@ -53,7 +53,7 @@ func (m *Manager) StartAll() error {
 		})
 	}
 
-	// Set the initial size for PTY
+	// Set the initial size for all PTYs
 	if f, ok := m.stdout.(*os.File); ok {
 		if ws, err := pty.GetsizeFull(f); err == nil {
 			m.ResizeAll(ws)
@@ -104,9 +104,7 @@ func (m *Manager) Shutdown() {
 
 func (m *Manager) ResizeAll(ws *pty.Winsize) {
 	for _, p := range m.processes {
-		if p.pty != nil {
-			pty.Setsize(p.pty, ws)
-		}
+		p.SetSize(ws)
 	}
 }
 

@@ -1,0 +1,65 @@
+# Known Issues
+
+## High Priority
+
+### 1. PTY File Descriptor Not Closed
+**Location:** `gopty/process.go:Monitor()`
+**Issue:** PTY master file descriptor is never closed after process exits, causing resource leak.
+**Fix:** Add `p.pty.Close()` after `p.read()` returns in the Monitor function.
+
+### 2. Data Race on Controller.err
+**Location:** `gopty/controller.go:10-11`
+**Issue:** The `err` field is read in `Run()` loop (different goroutine) and written in `Shutdown()` without synchronization.
+**Fix:** Use `atomic.Pointer[error]` or add mutex protection.
+
+### 3. Goroutine Leaks on Shutdown
+**Location:** `cmd/main.go:67-87`
+**Issue:** Signal handler goroutines (`listenResize`, `listenTerm`) never terminate, leaking on shutdown.
+**Fix:** Pass a context or close channel to allow clean exit.
+
+## Medium Priority
+
+### 4. go.mod Indirect Directives
+**Location:** `go.mod:6-9`
+**Issue:** Direct dependencies marked as `// indirect`.
+**Fix:** Run `go mod tidy` to fix directives.
+
+### 5. Dialog Input Blocking
+**Location:** `gopty/dialog.go:39-69`
+**Issue:** `Dialog.Open()` blocks forever on `d.readKey()` if input stops. No timeout mechanism.
+**Fix:** Add context with timeout for dialog operations.
+
+## Low Priority
+
+### 6. Error Handling Uses Magic Value
+**Location:** `gopty/controller.go:34-37`
+**Issue:** Using `io.EOF` as control signal is unidiomatic.
+**Fix:** Use a done channel or context for cancellation.
+
+### 7. Missing Edge Case Tests
+**Location:** Test suite
+**Issues:** Missing tests for:
+- Rapid attach/detach cycles
+- Window resize during attach
+- Partial reads from PTY
+- Duplicate process names in Procfile
+
+### 8. Procfile Validation Missing
+**Location:** `gopty/utils.go:21-56`
+**Issue:** No validation for:
+- Duplicate process names
+- Empty process names
+- Shell injection risks
+
+## Documentation Issues
+
+### 9. Missing Documentation Files
+**Location:** `docs/`
+**Issue:** AGENTS.md references `docs/spec.md`, `docs/plan.md`, `docs/concepts.md` that don't exist.
+**Fix:** Create docs/ files or update AGENTS.md.
+
+## Already Verified
+
+### 10. Output Interleaving (NOT AN ISSUE)
+**Location:** `gopty/process.go:136-158`
+**Status:** Verified - Each line is written atomically via single `fmt.Fprintf()` call, so no interleaving within lines.

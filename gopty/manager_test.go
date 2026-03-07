@@ -108,12 +108,11 @@ func TestManager_ResizeAll(t *testing.T) {
 	ws := &pty.Winsize{Rows: 40, Cols: 100}
 	m.ResizeAll(ws)
 
-	got, err := pty.GetsizeFull(m.processes[0].pty)
-	m.Shutdown()
-
+	got, err := m.processes[0].GetSize()
 	if err != nil {
 		t.Fatalf("GetsizeFull failed: %v", err)
 	}
+	m.Shutdown()
 	if got.Rows != 40 || got.Cols != 100 {
 		t.Errorf("expected 40x100, got %dx%d", got.Rows, got.Cols)
 	}
