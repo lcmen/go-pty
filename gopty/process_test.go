@@ -1,9 +1,9 @@
 package gopty
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"testing"
@@ -13,11 +13,10 @@ import (
 )
 
 func TestNewProcess(t *testing.T) {
-	entry := Entry{Name: "web", Command: "bundle exec rails server"}
-	p := NewProcess(entry, 0)
+	p := NewProcess(Entry{Name: "web", Command: "bundle exec rails server"}, 0)
 
-	if diff := cmp.Diff(entry, p.Entry); diff != "" {
-		t.Errorf("Process.Entry mismatch (-expected +got):\n%s", diff)
+	if diff := cmp.Diff("web", p.Name); diff != "" {
+		t.Errorf("Process.Name mismatch (-expected +got):\n%s", diff)
 	}
 
 	if diff := cmp.Diff("\033[31m", p.Color); diff != "" {
@@ -25,10 +24,27 @@ func TestNewProcess(t *testing.T) {
 	}
 }
 
+func TestProcess_Start(t *testing.T) {
+	p := NewProcess(Entry{Name: "web", Command: "echo hello"}, 0)
+
+	if err := p.Start(); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	if p.cmd == nil || p.cmd.Process == nil {
+		t.Fatal("expected cmd.Process to be set after Start")
+	}
+
+	if p.pty == nil {
+		t.Fatal("expected pty to be set after Start")
+	}
+}
+
 func TestProcess_Monitor(t *testing.T) {
 	t.Run("OutputAll prefixes each line", func(t *testing.T) {
-		p, buf := stubProcess(Entry{Name: "web", Command: "cmd"}, OutputAll, "line1\nline2\n")
-		p.Monitor()
+		var buf bytes.Buffer
+		p := stubProcess(t, "line1\nline2\n")
+		p.Monitor(&buf, func() OutputMode { return OutputAll })
 
 		expected := "\033[31m[web]\033[0m line1\r\n\033[31m[web]\033[0m line2\r\n\033[31m[web]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -37,8 +53,9 @@ func TestProcess_Monitor(t *testing.T) {
 	})
 
 	t.Run("OutputAttached passes through raw bytes", func(t *testing.T) {
-		p, buf := stubProcess(Entry{Name: "web", Command: "cmd"}, OutputAttached, "line1\nline2\n")
-		p.Monitor()
+		var buf bytes.Buffer
+		p := stubProcess(t, "line1\nline2\n")
+		p.Monitor(&buf, func() OutputMode { return OutputAttached })
 
 		expected := "line1\nline2\n\033[31m[web]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -47,8 +64,9 @@ func TestProcess_Monitor(t *testing.T) {
 	})
 
 	t.Run("OutputIgnored drops output but prints exit", func(t *testing.T) {
-		p, buf := stubProcess(Entry{Name: "web", Command: "cmd"}, OutputIgnored, "line1\nline2\n")
-		p.Monitor()
+		var buf bytes.Buffer
+		p := stubProcess(t, "line1\nline2\n")
+		p.Monitor(&buf, func() OutputMode { return OutputIgnored })
 
 		expected := "\033[31m[web]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -57,8 +75,9 @@ func TestProcess_Monitor(t *testing.T) {
 	})
 
 	t.Run("prints non-zero exit code", func(t *testing.T) {
-		p, buf := stubProcess(Entry{Name: "web", Command: "cmd"}, OutputAll, "hello\n", 1)
-		p.Monitor()
+		var buf bytes.Buffer
+		p := stubProcess(t, "hello\n", 1)
+		p.Monitor(&buf, func() OutputMode { return OutputAll })
 
 		expected := "\033[31m[web]\033[0m hello\r\n\033[31m[web]\033[0m exited (code 1)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -68,20 +87,20 @@ func TestProcess_Monitor(t *testing.T) {
 }
 
 func TestProcess_Shutdown(t *testing.T) {
-	p, _ := stubProcess(Entry{Name: "web", Command: "sleep 60"}, OutputAll, "")
+	p := NewProcess(Entry{Name: "web", Command: "sleep 60"}, 0)
 
 	if err := p.Start(); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
-	go p.Monitor()
+	go p.Monitor(io.Discard, func() OutputMode { return OutputAll })
 
 	p.Shutdown(200 * time.Millisecond)
 
 	select {
 	case <-p.done:
 	case <-time.After(300 * time.Millisecond):
-		t.Error("expected process to exit after SIGTERM")
+		t.Error("expected process to exit after shutdown")
 	}
 }
 
@@ -100,8 +119,13 @@ func TestProcess_Write(t *testing.T) {
 	}
 }
 
-func stubProcess(entry Entry, mode OutputMode, input string, exitCodes ...int) (*Process, *bytes.Buffer) {
-	r, w, _ := os.Pipe()
+func stubProcess(t *testing.T, input string, exitCodes ...int) *Process {
+	t.Helper()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe failed: %v", err)
+	}
 
 	exitCode := 0
 	if len(exitCodes) > 0 {
@@ -116,16 +140,12 @@ func stubProcess(entry Entry, mode OutputMode, input string, exitCodes ...int) (
 	}
 	cmd.Start()
 
-	var buf bytes.Buffer
-	p := NewProcess(entry, 0)
+	p := NewProcess(Entry{Name: "web", Command: "cmd"}, 0)
 	p.cmd = cmd
 	p.pty = r
-	p.reader = bufio.NewReader(r)
-	p.mode = func() OutputMode { return mode }
-	p.stdout = &buf
 
 	w.WriteString(input)
 	w.Close()
 
-	return p, &buf
+	return p
 }

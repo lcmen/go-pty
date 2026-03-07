@@ -32,8 +32,6 @@ func NewManager(entries []Entry, stdout io.Writer) *Manager {
 
 	for i, entry := range entries {
 		p := NewProcess(entry, i)
-		p.mode = m.mode(p)
-		p.stdout = m.stdout
 		m.processes = append(m.processes, p)
 	}
 
@@ -48,7 +46,7 @@ func (m *Manager) StartAll() error {
 
 		m.wg.Go(func() {
 			// If one of the process crashed, shutdown the whole manager
-			if err := p.Monitor(); err != nil {
+			if err := p.Monitor(m.stdout, m.mode(p)); err != nil {
 				m.Shutdown()
 			}
 		})

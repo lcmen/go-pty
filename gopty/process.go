@@ -32,23 +32,17 @@ var colorPalette = []string{
 type Process struct {
 	Color string
 	Entry
-	cmd    *exec.Cmd
-	done   chan struct{}
-	mode   func() OutputMode
-	prefix string
-	pty    *os.File
-	ptyMu  sync.RWMutex
-	reader *bufio.Reader
-	stdout io.Writer
+	cmd   *exec.Cmd
+	done  chan struct{}
+	pty   *os.File
+	ptyMu sync.RWMutex
 }
 
 func NewProcess(entry Entry, index int) *Process {
-	color := colorPalette[index%len(colorPalette)]
 	return &Process{
-		Entry:  entry,
-		Color:  color,
-		done:   make(chan struct{}),
-		prefix: fmt.Sprintf("%s[%s]\033[0m", color, entry.Name),
+		Entry: entry,
+		Color: colorPalette[index%len(colorPalette)],
+		done:  make(chan struct{}),
 	}
 }
 
@@ -62,21 +56,22 @@ func (p *Process) Start() error {
 
 	p.cmd = cmd
 	p.pty = master
-	p.reader = bufio.NewReader(master)
 
 	return nil
 }
 
-func (p *Process) Monitor() error {
+func (p *Process) Monitor(stdout io.Writer, mode func() OutputMode) error {
 	defer p.close()
-	p.read()
+
+	prefix := fmt.Sprintf("%s[%s]\033[0m", p.Color, p.Name)
+	p.read(stdout, mode, prefix)
 
 	exitCode, signal := p.exit()
 
 	if signal != "" {
-		fmt.Fprintf(p.stdout, "%s exited (signal %s)\r\n", p.prefix, signal)
+		fmt.Fprintf(stdout, "%s exited (signal %s)\r\n", prefix, signal)
 	} else {
-		fmt.Fprintf(p.stdout, "%s exited (code %d)\r\n", p.prefix, exitCode)
+		fmt.Fprintf(stdout, "%s exited (code %d)\r\n", prefix, exitCode)
 	}
 
 	// Notify that process exited and we don't need to send SIGKILL
@@ -133,6 +128,17 @@ func (p *Process) PtyResize(ws *pty.Winsize) error {
 	return pty.Setsize(p.pty, ws)
 }
 
+func (p *Process) close() error {
+	p.ptyMu.Lock()
+	defer p.ptyMu.Unlock()
+	if p.pty == nil {
+		return nil
+	}
+	err := p.pty.Close()
+	p.pty = nil
+	return err
+}
+
 func (p *Process) exit() (int, string) {
 	if err := p.cmd.Wait(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -146,7 +152,9 @@ func (p *Process) exit() (int, string) {
 	return 0, ""
 }
 
-func (p *Process) read() {
+func (p *Process) read(stdout io.Writer, mode func() OutputMode, prefix string) {
+	reader := bufio.NewReader(p.pty)
+
 	var err error
 	var line []byte
 	var n int
@@ -154,39 +162,28 @@ func (p *Process) read() {
 	buf := make([]byte, 4096)
 
 	for {
-		switch p.mode() {
+		switch mode() {
 		case OutputAll:
 			// Read and write line by line
-			line, err = p.reader.ReadBytes('\n')
+			line, err = reader.ReadBytes('\n')
 			if len(line) > 0 && err == nil {
-				fmt.Fprintf(p.stdout, "%s %s\r\n", p.prefix, bytes.TrimRight(line, "\r\n"))
+				fmt.Fprintf(stdout, "%s %s\r\n", prefix, bytes.TrimRight(line, "\r\n"))
 			}
 
 		case OutputAttached:
 			// Read and write immediately to output
-			n, err = p.reader.Read(buf)
+			n, err = reader.Read(buf)
 			if n > 0 && err == nil {
-				p.stdout.Write(buf[:n])
+				stdout.Write(buf[:n])
 			}
 
 		case OutputIgnored:
 			// Read and discard to prevent child process from blocking
-			_, err = p.reader.Read(buf)
+			_, err = reader.Read(buf)
 		}
 
 		if err != nil {
 			break
 		}
 	}
-}
-
-func (p *Process) close() error {
-	p.ptyMu.Lock()
-	defer p.ptyMu.Unlock()
-	if p.pty == nil {
-		return nil
-	}
-	err := p.pty.Close()
-	p.pty = nil
-	return err
 }
