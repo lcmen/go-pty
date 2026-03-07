@@ -91,11 +91,9 @@ func (m *Manager) Shutdown() {
 		timeout := 5 * time.Second
 		var wg sync.WaitGroup
 		for _, p := range m.processes {
-			wg.Add(1)
-			go func(p *Process) {
-				defer wg.Done()
+			wg.Go(func() {
 				p.Shutdown(timeout)
-			}(p)
+			})
 		}
 		wg.Wait()
 	})
@@ -107,7 +105,7 @@ func (m *Manager) ResizeAll(ws *pty.Winsize) {
 	}
 }
 
-func (m *Manager) Wait() {
+func (m *Manager) WaitAll() {
 	m.wg.Wait()
 }
 

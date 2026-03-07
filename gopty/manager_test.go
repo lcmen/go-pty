@@ -151,7 +151,7 @@ func TestManager_StartAll(t *testing.T) {
 		if err := m.StartAll(); err != nil {
 			t.Fatalf("StartAll failed: %v", err)
 		}
-		m.Wait()
+		m.WaitAll()
 
 		expected := "\033[31m[web]\033[0m hello\r\n\033[31m[web]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -169,7 +169,7 @@ func TestManager_StartAll(t *testing.T) {
 		if err := m.StartAll(); err != nil {
 			t.Fatalf("StartAll failed: %v", err)
 		}
-		m.Wait()
+		m.WaitAll()
 
 		output := buf.String()
 		if !strings.Contains(output, "[worker]\033[0m exited (code 1)") {
