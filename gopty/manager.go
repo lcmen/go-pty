@@ -31,8 +31,9 @@ func NewManager(entries []Entry, stdout io.Writer) *Manager {
 	m := &Manager{stdout: stdout}
 
 	for i, entry := range entries {
-		p := NewProcess(entry, i, m.stdout)
+		p := NewProcess(entry, i)
 		p.mode = m.mode(p)
+		p.stdout = m.stdout
 		m.processes = append(m.processes, p)
 	}
 
@@ -87,15 +88,11 @@ func (m *Manager) Detach() {
 
 func (m *Manager) Shutdown() {
 	m.terminating.Do(func() {
-		for _, p := range m.processes {
-			p.Shutdown()
-		}
-
 		timeout := 5 * time.Second
 		var wg sync.WaitGroup
 		for _, p := range m.processes {
 			wg.Go(func() {
-				p.Kill(timeout)
+				p.Shutdown(timeout)
 			})
 		}
 		wg.Wait()
@@ -104,11 +101,11 @@ func (m *Manager) Shutdown() {
 
 func (m *Manager) ResizeAll(ws *pty.Winsize) {
 	for _, p := range m.processes {
-		p.SetSize(ws)
+		p.PtyResize(ws)
 	}
 }
 
-func (m *Manager) Wait() {
+func (m *Manager) WaitAll() {
 	m.wg.Wait()
 }
 

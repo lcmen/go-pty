@@ -32,25 +32,23 @@ var colorPalette = []string{
 type Process struct {
 	Color string
 	Entry
-	ExitCode int
-	cmd      *exec.Cmd
-	done     chan struct{}
-	mode     func() OutputMode
-	prefix   string
-	pty      *os.File
-	ptyMu    sync.RWMutex
-	reader   *bufio.Reader
-	stdout   io.Writer
+	cmd    *exec.Cmd
+	done   chan struct{}
+	mode   func() OutputMode
+	prefix string
+	pty    *os.File
+	ptyMu  sync.RWMutex
+	reader *bufio.Reader
+	stdout io.Writer
 }
 
-func NewProcess(entry Entry, index int, stdout io.Writer) *Process {
+func NewProcess(entry Entry, index int) *Process {
 	color := colorPalette[index%len(colorPalette)]
 	return &Process{
 		Entry:  entry,
 		Color:  color,
 		done:   make(chan struct{}),
 		prefix: fmt.Sprintf("%s[%s]\033[0m", color, entry.Name),
-		stdout: stdout,
 	}
 }
 
@@ -74,19 +72,21 @@ func (p *Process) Monitor() error {
 	p.read()
 
 	exitCode, signal := p.exit()
-	p.ExitCode = exitCode
+
 	if signal != "" {
 		fmt.Fprintf(p.stdout, "%s exited (signal %s)\r\n", p.prefix, signal)
 	} else {
-		fmt.Fprintf(p.stdout, "%s exited (code %d)\r\n", p.prefix, p.ExitCode)
+		fmt.Fprintf(p.stdout, "%s exited (code %d)\r\n", p.prefix, exitCode)
 	}
+
+	// Notify that process exited and we don't need to send SIGKILL
 	close(p.done)
 
-	if p.ExitCode != 0 {
-		return fmt.Errorf("process %s exited with code %d", p.Name, p.ExitCode)
-	} else {
-		return nil
+	if exitCode != 0 {
+		return fmt.Errorf("process %s exited with code %d", p.Name, exitCode)
 	}
+
+	return nil
 }
 
 func (p *Process) Write(buf []byte) (int, error) {
@@ -98,19 +98,13 @@ func (p *Process) Write(buf []byte) (int, error) {
 	return p.pty.Write(buf)
 }
 
-func (p *Process) Shutdown() {
+func (p *Process) Shutdown(timeout time.Duration) {
 	if p.cmd == nil || p.cmd.Process == nil {
 		return
 	}
 
 	// Send SIGINT for graceful shutdown
 	syscall.Kill(-p.cmd.Process.Pid, syscall.SIGINT)
-}
-
-func (p *Process) Kill(timeout time.Duration) {
-	if p.cmd == nil || p.cmd.Process == nil {
-		return
-	}
 
 	// Wait for graceful exit, escalate to SIGKILL after timeout
 	select {
@@ -121,7 +115,7 @@ func (p *Process) Kill(timeout time.Duration) {
 	}
 }
 
-func (p *Process) GetSize() (*pty.Winsize, error) {
+func (p *Process) PtySize() (*pty.Winsize, error) {
 	p.ptyMu.RLock()
 	defer p.ptyMu.RUnlock()
 	if p.pty == nil {
@@ -130,7 +124,7 @@ func (p *Process) GetSize() (*pty.Winsize, error) {
 	return pty.GetsizeFull(p.pty)
 }
 
-func (p *Process) SetSize(ws *pty.Winsize) error {
+func (p *Process) PtyResize(ws *pty.Winsize) error {
 	p.ptyMu.Lock()
 	defer p.ptyMu.Unlock()
 	if p.pty == nil {

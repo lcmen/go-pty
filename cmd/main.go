@@ -50,7 +50,7 @@ func main() {
 	listenTerm(ctx, c.Shutdown)
 
 	go c.Run()
-	m.Wait()
+	m.WaitAll()
 	c.Cleanup()
 }
 
