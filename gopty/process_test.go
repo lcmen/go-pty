@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"testing"
@@ -15,7 +14,7 @@ import (
 
 func TestNewProcess(t *testing.T) {
 	entry := Entry{Name: "web", Command: "bundle exec rails server"}
-	p := NewProcess(entry, 0, io.Discard)
+	p := NewProcess(entry, 0)
 
 	if diff := cmp.Diff(entry, p.Entry); diff != "" {
 		t.Errorf("Process.Entry mismatch (-expected +got):\n%s", diff)
@@ -27,35 +26,6 @@ func TestNewProcess(t *testing.T) {
 }
 
 func TestProcess_Monitor(t *testing.T) {
-	stubProcess := func(entry Entry, mode OutputMode, input string, exitCodes ...int) (*Process, *bytes.Buffer) {
-		r, w, _ := os.Pipe()
-
-		exitCode := 0
-		if len(exitCodes) > 0 {
-			exitCode = exitCodes[0]
-		}
-
-		var cmd *exec.Cmd
-		if exitCode == 0 {
-			cmd = exec.Command("true")
-		} else {
-			cmd = exec.Command("sh", "-c", fmt.Sprintf("exit %d", exitCode))
-		}
-		cmd.Start()
-
-		var buf bytes.Buffer
-		p := NewProcess(entry, 0, &buf)
-		p.cmd = cmd
-		p.pty = r
-		p.reader = bufio.NewReader(r)
-		p.mode = func() OutputMode { return mode }
-
-		w.WriteString(input)
-		w.Close()
-
-		return p, &buf
-	}
-
 	t.Run("OutputAll prefixes each line", func(t *testing.T) {
 		p, buf := stubProcess(Entry{Name: "web", Command: "cmd"}, OutputAll, "line1\nline2\n")
 		p.Monitor()
@@ -98,8 +68,7 @@ func TestProcess_Monitor(t *testing.T) {
 }
 
 func TestProcess_Shutdown(t *testing.T) {
-	p := NewProcess(Entry{Name: "web", Command: "sleep 60"}, 0, io.Discard)
-	p.mode = func() OutputMode { return OutputAll }
+	p, _ := stubProcess(Entry{Name: "web", Command: "sleep 60"}, OutputAll, "")
 
 	if err := p.Start(); err != nil {
 		t.Fatalf("Start failed: %v", err)
@@ -118,7 +87,7 @@ func TestProcess_Shutdown(t *testing.T) {
 
 func TestProcess_Write(t *testing.T) {
 	r, w, _ := os.Pipe()
-	p := NewProcess(Entry{Name: "web", Command: "cmd"}, 0, io.Discard)
+	p := NewProcess(Entry{Name: "web", Command: "cmd"}, 0)
 	p.pty = w
 
 	p.Write([]byte("hello"))
@@ -129,4 +98,34 @@ func TestProcess_Write(t *testing.T) {
 	if diff := cmp.Diff("hello", buf.String()); diff != "" {
 		t.Errorf("written data mismatch (-expected +got):\n%s", diff)
 	}
+}
+
+func stubProcess(entry Entry, mode OutputMode, input string, exitCodes ...int) (*Process, *bytes.Buffer) {
+	r, w, _ := os.Pipe()
+
+	exitCode := 0
+	if len(exitCodes) > 0 {
+		exitCode = exitCodes[0]
+	}
+
+	var cmd *exec.Cmd
+	if exitCode == 0 {
+		cmd = exec.Command("true")
+	} else {
+		cmd = exec.Command("sh", "-c", fmt.Sprintf("exit %d", exitCode))
+	}
+	cmd.Start()
+
+	var buf bytes.Buffer
+	p := NewProcess(entry, 0)
+	p.cmd = cmd
+	p.pty = r
+	p.reader = bufio.NewReader(r)
+	p.mode = func() OutputMode { return mode }
+	p.stdout = &buf
+
+	w.WriteString(input)
+	w.Close()
+
+	return p, &buf
 }
