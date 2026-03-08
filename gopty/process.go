@@ -8,47 +8,28 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/creack/pty"
 )
 
-var colorPalette = []string{
-	"\033[31m", // red
-	"\033[32m", // green
-	"\033[33m", // yellow
-	"\033[34m", // blue
-	"\033[35m", // magenta
-	"\033[36m", // cyan
-	"\033[91m", // bright red
-	"\033[92m", // bright green
-	"\033[93m", // bright yellow
-	"\033[94m", // bright blue
-	"\033[95m", // bright magenta
-	"\033[96m", // bright cyan
-}
-
 type Process struct {
-	Color string
 	Entry
-	cmd    *exec.Cmd
-	done   chan struct{}
-	mode   func() OutputMode
-	prefix string
-	pty    *os.File
-	ptyMu  sync.RWMutex
-	reader *bufio.Reader
-	stdout io.Writer
+	Color      string
+	cmd        *exec.Cmd
+	mode       atomic.Value
+	pty        *os.File
+	ptyMu      sync.RWMutex
+	terminated chan struct{}
 }
 
 func NewProcess(entry Entry, index int) *Process {
-	color := colorPalette[index%len(colorPalette)]
 	return &Process{
-		Entry:  entry,
-		Color:  color,
-		done:   make(chan struct{}),
-		prefix: fmt.Sprintf("%s[%s]\033[0m", color, entry.Name),
+		Entry:      entry,
+		Color:      ColorPalette[index%len(ColorPalette)],
+		terminated: make(chan struct{}),
 	}
 }
 
@@ -62,39 +43,40 @@ func (p *Process) Start() error {
 
 	p.cmd = cmd
 	p.pty = master
-	p.reader = bufio.NewReader(master)
 
 	return nil
 }
 
-func (p *Process) Monitor() error {
+func (p *Process) Stream(stdout io.Writer) error {
 	defer p.close()
-	p.read()
 
-	exitCode, signal := p.exit()
-
-	if signal != "" {
-		fmt.Fprintf(p.stdout, "%s exited (signal %s)\r\n", p.prefix, signal)
-	} else {
-		fmt.Fprintf(p.stdout, "%s exited (code %d)\r\n", p.prefix, exitCode)
-	}
+	prefix := fmt.Sprintf("%s[%s]\033[0m", p.Color, p.Name)
+	p.read(stdout, prefix)
 
 	// Notify that process exited and we don't need to send SIGKILL
-	close(p.done)
+	close(p.terminated)
 
-	if exitCode != 0 {
-		return fmt.Errorf("process %s exited with code %d", p.Name, exitCode)
+	code, signal := p.exitStatus()
+
+	if signal != "" {
+		fmt.Fprintf(stdout, "%s exited (signal %s)\r\n", prefix, signal)
+	} else {
+		fmt.Fprintf(stdout, "%s exited (code %d)\r\n", prefix, code)
+	}
+
+	if code != 0 {
+		return fmt.Errorf("process %s exited with code %d", p.Name, code)
 	}
 
 	return nil
 }
 
 func (p *Process) Write(buf []byte) (int, error) {
-	p.ptyMu.RLock()
-	defer p.ptyMu.RUnlock()
-	if p.pty == nil {
-		return 0, fmt.Errorf("pty not initialized")
+	unlock, err := p.lock(PtyWriteLock)
+	if err != nil {
+		return 0, err
 	}
+	defer unlock()
 	return p.pty.Write(buf)
 }
 
@@ -108,32 +90,43 @@ func (p *Process) Shutdown(timeout time.Duration) {
 
 	// Wait for graceful exit, escalate to SIGKILL after timeout
 	select {
-	case <-p.done:
+	case <-p.terminated:
 	case <-time.After(timeout):
 		syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL)
-		<-p.done
+		<-p.terminated
 	}
 }
 
 func (p *Process) PtySize() (*pty.Winsize, error) {
-	p.ptyMu.RLock()
-	defer p.ptyMu.RUnlock()
-	if p.pty == nil {
-		return nil, fmt.Errorf("pty not initialized")
+	unlock, err := p.lock(PtyReadLock)
+	if err != nil {
+		return nil, err
 	}
+	defer unlock()
 	return pty.GetsizeFull(p.pty)
 }
 
 func (p *Process) PtyResize(ws *pty.Winsize) error {
-	p.ptyMu.Lock()
-	defer p.ptyMu.Unlock()
-	if p.pty == nil {
-		return fmt.Errorf("pty not initialized")
+	unlock, err := p.lock(PtyWriteLock)
+	if err != nil {
+		return err
 	}
+	defer unlock()
 	return pty.Setsize(p.pty, ws)
 }
 
-func (p *Process) exit() (int, string) {
+func (p *Process) close() error {
+	p.ptyMu.Lock()
+	defer p.ptyMu.Unlock()
+	if p.pty == nil {
+		return nil
+	}
+	err := p.pty.Close()
+	p.pty = nil
+	return err
+}
+
+func (p *Process) exitStatus() (int, string) {
 	if err := p.cmd.Wait(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
@@ -146,47 +139,62 @@ func (p *Process) exit() (int, string) {
 	return 0, ""
 }
 
-func (p *Process) read() {
-	var err error
+func (p *Process) lock(mode ptyLockMode) (unlock func(), err error) {
+	var u func()
+
+	if mode == PtyReadLock {
+		p.ptyMu.RLock()
+		u = func() { p.ptyMu.RUnlock() }
+	} else {
+		p.ptyMu.Lock()
+		u = func() { p.ptyMu.Unlock() }
+	}
+
+	if p.pty == nil {
+		u()
+		return nil, fmt.Errorf("pty not initialized")
+	}
+	return u, nil
+}
+
+func (p *Process) read(stdout io.Writer, prefix string) {
+	unlock, err := p.lock(PtyReadLock)
+	if err != nil {
+		return
+	}
+	pty := p.pty
+	unlock()
+
+	reader := bufio.NewReader(pty)
+
 	var line []byte
 	var n int
-
 	buf := make([]byte, 4096)
 
 	for {
-		switch p.mode() {
+		mode := p.mode.Load().(OutputMode)
+		switch mode {
 		case OutputAll:
 			// Read and write line by line
-			line, err = p.reader.ReadBytes('\n')
+			line, err = reader.ReadBytes('\n')
 			if len(line) > 0 && err == nil {
-				fmt.Fprintf(p.stdout, "%s %s\r\n", p.prefix, bytes.TrimRight(line, "\r\n"))
+				fmt.Fprintf(stdout, "%s %s\r\n", prefix, bytes.TrimRight(line, "\r\n"))
 			}
 
 		case OutputAttached:
 			// Read and write immediately to output
-			n, err = p.reader.Read(buf)
+			n, err = reader.Read(buf)
 			if n > 0 && err == nil {
-				p.stdout.Write(buf[:n])
+				stdout.Write(buf[:n])
 			}
 
 		case OutputIgnored:
 			// Read and discard to prevent child process from blocking
-			_, err = p.reader.Read(buf)
+			_, err = reader.Read(buf)
 		}
 
 		if err != nil {
 			break
 		}
 	}
-}
-
-func (p *Process) close() error {
-	p.ptyMu.Lock()
-	defer p.ptyMu.Unlock()
-	if p.pty == nil {
-		return nil
-	}
-	err := p.pty.Close()
-	p.pty = nil
-	return err
 }

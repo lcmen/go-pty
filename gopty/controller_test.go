@@ -28,8 +28,8 @@ func TestController_Run(t *testing.T) {
 		if c.err.Load() == nil {
 			t.Error("expected controller to be stopped")
 		}
-		if m.Attached() != nil {
-			t.Error("expected no process attached after esc")
+		if c.mode != OutputAll {
+			t.Error("expected controller to be in all-out mode")
 		}
 	})
 
@@ -50,8 +50,8 @@ func TestController_Run(t *testing.T) {
 		if !strings.Contains(output, "Detached from web") {
 			t.Error("expected detach message")
 		}
-		if m.Attached() != nil {
-			t.Error("expected no process attached after detach")
+		if c.mode != OutputAll {
+			t.Error("expected controller to be in all-out mode after detach")
 		}
 	})
 
@@ -62,6 +62,7 @@ func TestController_Run(t *testing.T) {
 		m.Attach(0)
 		// Type 'a', 'b', ctrl+c (ignored in attached mode), then ctrl+] to detach, ctrl+c to shutdown
 		c := NewController(m, stubKeypresses('a', 'b', byteCtrlC, byteCtrlBracket, byteCtrlC), io.Discard)
+		c.mode = OutputAttached
 
 		c.Run()
 

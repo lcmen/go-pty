@@ -10,6 +10,7 @@ import (
 type Controller struct {
 	err     atomic.Pointer[error]
 	manager *Manager
+	mode    OutputMode
 	stdin   io.Reader
 	stdout  io.Writer
 }
@@ -17,6 +18,7 @@ type Controller struct {
 func NewController(manager *Manager, stdin io.Reader, stdout io.Writer) *Controller {
 	return &Controller{
 		manager: manager,
+		mode:    OutputAll,
 		stdin:   stdin,
 		stdout:  stdout,
 	}
@@ -24,9 +26,10 @@ func NewController(manager *Manager, stdin io.Reader, stdout io.Writer) *Control
 
 func (c *Controller) Run() {
 	for c.err.Load() == nil {
-		if c.manager.Attached() != nil {
+		switch c.mode {
+		case OutputAttached:
 			c.handleAttached()
-		} else {
+		default:
 			c.handleAllOut()
 		}
 	}
@@ -63,9 +66,11 @@ func (c *Controller) handleAllOut() {
 		d := NewDialog(c.manager.Processes(), c.stdin, c.stdout)
 		idx, ok := d.Open()
 		if ok {
-			c.manager.Attach(idx)
-			p := c.manager.Attached()
-			fmt.Fprintf(c.stdout, "\r\n[go-pty] Attached to %s (ctrl+] to detach)\r\n", p.Name)
+			p, err := c.manager.Attach(idx)
+			if err == nil {
+				c.mode = OutputAttached
+				fmt.Fprintf(c.stdout, "\r\n[go-pty] Attached to %s (ctrl+] to detach)\r\n", p.Name)
+			}
 		}
 	case byteCtrlC:
 		fmt.Fprintf(c.stdout, "[go-pty] Terminating...\r\n")
@@ -82,9 +87,9 @@ func (c *Controller) handleAttached() {
 
 	switch buf {
 	case byteCtrlBracket:
-		name := c.manager.Attached().Name
-		c.manager.Detach()
-		fmt.Fprintf(c.stdout, "\r\n[go-pty] Detached from %s\r\n", name)
+		p := c.manager.Detach()
+		c.mode = OutputAll
+		fmt.Fprintf(c.stdout, "\r\n[go-pty] Detached from %s\r\n", p.Name)
 	case byteCtrlC:
 		fmt.Fprintf(c.stdout, "\r\n[go-pty] (press ctrl+] to detach first, then press ctrl+c again)\r\n")
 	default:

@@ -18,6 +18,41 @@ const (
 	seqArrowDown = "\x1b[B"
 )
 
+var ColorPalette = []string{
+	"\033[31m", // red
+	"\033[32m", // green
+	"\033[33m", // yellow
+	"\033[34m", // blue
+	"\033[35m", // magenta
+	"\033[36m", // cyan
+	"\033[91m", // bright red
+	"\033[92m", // bright green
+	"\033[93m", // bright yellow
+	"\033[94m", // bright blue
+	"\033[95m", // bright magenta
+	"\033[96m", // bright cyan
+}
+
+type OutputMode int
+
+const (
+	OutputAll OutputMode = iota
+	OutputAttached
+	OutputIgnored
+)
+
+type ptyLockMode int
+
+const (
+	PtyReadLock ptyLockMode = iota
+	PtyWriteLock
+)
+
+type Entry struct {
+	Name    string
+	Command string
+}
+
 func ParseProcfile(path string) ([]Entry, error) {
 	file, err := os.Open(path)
 	if err != nil {

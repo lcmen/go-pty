@@ -14,7 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
-// Buffer that is goroutine safe for tests
+// syncBuffer is a goroutine-safe buffer for tests
 type syncBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
@@ -60,12 +60,16 @@ func TestManager_Attach(t *testing.T) {
 			{Name: "web", Command: "cmd1"},
 		}, io.Discard)
 
-		if err := m.Attach(0); err != nil {
+		p, err := m.Attach(0)
+		if err != nil {
 			t.Errorf("Attach returned unexpected error: %v", err)
 		}
 
-		if m.Attached() != m.processes[0] {
+		if p != m.processes[0] {
 			t.Error("attached should point to web process")
+		}
+		if m.processes[0].mode.Load().(OutputMode) != OutputAttached {
+			t.Error("process mode should be OutputAttached")
 		}
 	})
 
@@ -74,11 +78,13 @@ func TestManager_Attach(t *testing.T) {
 			{Name: "web", Command: "cmd1"},
 		}, io.Discard)
 
-		if err := m.Attach(5); err == nil {
+		_, err := m.Attach(5)
+		if err == nil {
 			t.Error("Attach should return error for out-of-range index")
 		}
 
-		if err := m.Attach(-1); err == nil {
+		_, err = m.Attach(-1)
+		if err == nil {
 			t.Error("Attach should return error for negative index")
 		}
 	})
@@ -89,11 +95,14 @@ func TestManager_Detach(t *testing.T) {
 		{Name: "web", Command: "cmd1"},
 	}, io.Discard)
 
-	m.attached.Store(m.processes[0])
-	m.Detach()
+	m.Attach(0)
+	p := m.Detach()
 
-	if m.Attached() != nil {
-		t.Error("attached should be nil after Detach")
+	if p != m.processes[0] {
+		t.Error("Detach should return previously attached process")
+	}
+	if m.processes[0].mode.Load().(OutputMode) != OutputAll {
+		t.Error("process mode should be OutputAll after detach")
 	}
 }
 
@@ -129,9 +138,14 @@ func TestManager_Shutdown(t *testing.T) {
 		if err := m.StartAll(); err != nil {
 			t.Fatalf("StartAll failed: %v", err)
 		}
-
 		waitFor(t, func() bool { return strings.Count(buf.String(), "ready") >= 2 })
+
 		m.Shutdown()
+		waitFor(t, func() bool {
+			output := buf.String()
+			return strings.Contains(output, "[web]\033[0m exited") &&
+				strings.Contains(output, "[worker]\033[0m exited")
+		})
 
 		output := buf.String()
 		if !strings.Contains(output, "[web]\033[0m exited") {
@@ -211,11 +225,11 @@ func TestManager_WriteToAttached(t *testing.T) {
 		m.WriteToAttached([]byte("hello"))
 		w.Close()
 
-		var buf syncBuffer
+		var buf bytes.Buffer
 		buf.ReadFrom(r)
 		// Expect '\n' from Attach(), then 'hello'
-		if buf.String() != "\nhello" {
-			t.Errorf("expected %q, got %q", "\nhello", buf.String())
+		if diff := cmp.Diff("\nhello", buf.String()); diff != "" {
+			t.Errorf("output mismatch (-expected +got):\n%s", diff)
 		}
 	})
 
