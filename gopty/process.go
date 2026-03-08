@@ -32,17 +32,17 @@ var colorPalette = []string{
 type Process struct {
 	Color string
 	Entry
-	cmd   *exec.Cmd
-	done  chan struct{}
-	pty   *os.File
-	ptyMu sync.RWMutex
+	cmd        *exec.Cmd
+	terminated chan struct{}
+	pty        *os.File
+	ptyMu      sync.RWMutex
 }
 
 func NewProcess(entry Entry, index int) *Process {
 	return &Process{
-		Entry: entry,
-		Color: colorPalette[index%len(colorPalette)],
-		done:  make(chan struct{}),
+		Entry:      entry,
+		Color:      colorPalette[index%len(colorPalette)],
+		terminated: make(chan struct{}),
 	}
 }
 
@@ -66,19 +66,19 @@ func (p *Process) Monitor(stdout io.Writer, mode func() OutputMode) error {
 	prefix := fmt.Sprintf("%s[%s]\033[0m", p.Color, p.Name)
 	p.read(stdout, mode, prefix)
 
-	exitCode, signal := p.exit()
+	// Notify that process exited and we don't need to send SIGKILL
+	close(p.terminated)
+
+	code, signal := p.exitStatus()
 
 	if signal != "" {
 		fmt.Fprintf(stdout, "%s exited (signal %s)\r\n", prefix, signal)
 	} else {
-		fmt.Fprintf(stdout, "%s exited (code %d)\r\n", prefix, exitCode)
+		fmt.Fprintf(stdout, "%s exited (code %d)\r\n", prefix, code)
 	}
 
-	// Notify that process exited and we don't need to send SIGKILL
-	close(p.done)
-
-	if exitCode != 0 {
-		return fmt.Errorf("process %s exited with code %d", p.Name, exitCode)
+	if code != 0 {
+		return fmt.Errorf("process %s exited with code %d", p.Name, code)
 	}
 
 	return nil
@@ -103,10 +103,10 @@ func (p *Process) Shutdown(timeout time.Duration) {
 
 	// Wait for graceful exit, escalate to SIGKILL after timeout
 	select {
-	case <-p.done:
+	case <-p.terminated:
 	case <-time.After(timeout):
 		syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL)
-		<-p.done
+		<-p.terminated
 	}
 }
 
@@ -139,7 +139,7 @@ func (p *Process) close() error {
 	return err
 }
 
-func (p *Process) exit() (int, string) {
+func (p *Process) exitStatus() (int, string) {
 	if err := p.cmd.Wait(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {

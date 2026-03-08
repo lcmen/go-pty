@@ -98,7 +98,7 @@ func TestProcess_Shutdown(t *testing.T) {
 	p.Shutdown(200 * time.Millisecond)
 
 	select {
-	case <-p.done:
+	case <-p.terminated:
 	case <-time.After(300 * time.Millisecond):
 		t.Error("expected process to exit after shutdown")
 	}

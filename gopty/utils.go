@@ -18,6 +18,11 @@ const (
 	seqArrowDown = "\x1b[B"
 )
 
+type Entry struct {
+	Name    string
+	Command string
+}
+
 func ParseProcfile(path string) ([]Entry, error) {
 	file, err := os.Open(path)
 	if err != nil {
