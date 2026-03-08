@@ -5,22 +5,12 @@ import (
 	"io"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/creack/pty"
 )
 
-type OutputMode int
-
-const (
-	OutputAll OutputMode = iota
-	OutputAttached
-	OutputIgnored
-)
-
 type Manager struct {
-	attached    atomic.Pointer[Process]
 	processes   []*Process
 	stdout      io.Writer
 	terminating sync.Once
@@ -32,6 +22,7 @@ func NewManager(entries []Entry, stdout io.Writer) *Manager {
 
 	for i, entry := range entries {
 		p := NewProcess(entry, i)
+		p.mode.Store(OutputAll)
 		m.processes = append(m.processes, p)
 	}
 
@@ -46,7 +37,7 @@ func (m *Manager) StartAll() error {
 
 		m.wg.Go(func() {
 			// If one of the process crashed, shutdown the whole manager
-			if err := p.Stream(m.stdout, m.mode(p)); err != nil {
+			if err := p.Stream(m.stdout); err != nil {
 				m.Shutdown()
 			}
 		})
@@ -62,26 +53,25 @@ func (m *Manager) StartAll() error {
 	return nil
 }
 
-func (m *Manager) Attached() *Process {
-	return m.attached.Load()
-}
-
-func (m *Manager) Attach(index int) error {
+func (m *Manager) Attach(index int) (*Process, error) {
 	if index < 0 || index >= len(m.processes) {
-		return fmt.Errorf("process index %d out of range [0, %d)", index, len(m.processes))
+		return nil, fmt.Errorf("process index %d out of range [0, %d)", index, len(m.processes))
 	}
-	m.attached.Store(m.processes[index])
+	p := m.processes[index]
+	m.updateAllModes(p)
 	// Send enter to trigger prompt refresh so cursor lands at the correct position
-	m.WriteToAttached([]byte("\n"))
-	return nil
+	p.Write([]byte("\n"))
+	return p, nil
 }
 
 func (m *Manager) Processes() []*Process {
 	return m.processes
 }
 
-func (m *Manager) Detach() {
-	m.attached.Store(nil)
+func (m *Manager) Detach() *Process {
+	oldAttached := m.attached()
+	m.updateAllModes(nil)
+	return oldAttached
 }
 
 func (m *Manager) Shutdown() {
@@ -108,22 +98,31 @@ func (m *Manager) WaitAll() {
 }
 
 func (m *Manager) WriteToAttached(buf []byte) (int, error) {
-	p := m.Attached()
+	p := m.attached()
 	if p == nil {
 		return 0, nil
 	}
 	return p.Write(buf)
 }
 
-func (m *Manager) mode(p *Process) func() OutputMode {
-	return func() OutputMode {
-		attached := m.Attached()
-		if attached == nil {
-			return OutputAll
+func (m *Manager) attached() *Process {
+	for _, p := range m.processes {
+		if p.mode.Load().(OutputMode) == OutputAttached {
+			return p
 		}
-		if attached == p {
-			return OutputAttached
+	}
+	return nil
+}
+
+func (m *Manager) updateAllModes(attached *Process) {
+	for _, p := range m.processes {
+		switch {
+		case attached == nil:
+			p.mode.Store(OutputAll)
+		case p == attached:
+			p.mode.Store(OutputAttached)
+		default:
+			p.mode.Store(OutputIgnored)
 		}
-		return OutputIgnored
 	}
 }

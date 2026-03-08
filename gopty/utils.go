@@ -33,6 +33,14 @@ var ColorPalette = []string{
 	"\033[96m", // bright cyan
 }
 
+type OutputMode int
+
+const (
+	OutputAll OutputMode = iota
+	OutputAttached
+	OutputIgnored
+)
+
 type ptyLockMode int
 
 const (

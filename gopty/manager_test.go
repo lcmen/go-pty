@@ -60,12 +60,16 @@ func TestManager_Attach(t *testing.T) {
 			{Name: "web", Command: "cmd1"},
 		}, io.Discard)
 
-		if err := m.Attach(0); err != nil {
+		p, err := m.Attach(0)
+		if err != nil {
 			t.Errorf("Attach returned unexpected error: %v", err)
 		}
 
-		if m.Attached() != m.processes[0] {
+		if p != m.processes[0] {
 			t.Error("attached should point to web process")
+		}
+		if m.processes[0].mode.Load().(OutputMode) != OutputAttached {
+			t.Error("process mode should be OutputAttached")
 		}
 	})
 
@@ -74,11 +78,13 @@ func TestManager_Attach(t *testing.T) {
 			{Name: "web", Command: "cmd1"},
 		}, io.Discard)
 
-		if err := m.Attach(5); err == nil {
+		_, err := m.Attach(5)
+		if err == nil {
 			t.Error("Attach should return error for out-of-range index")
 		}
 
-		if err := m.Attach(-1); err == nil {
+		_, err = m.Attach(-1)
+		if err == nil {
 			t.Error("Attach should return error for negative index")
 		}
 	})
@@ -89,11 +95,14 @@ func TestManager_Detach(t *testing.T) {
 		{Name: "web", Command: "cmd1"},
 	}, io.Discard)
 
-	m.attached.Store(m.processes[0])
-	m.Detach()
+	m.Attach(0)
+	p := m.Detach()
 
-	if m.Attached() != nil {
-		t.Error("attached should be nil after Detach")
+	if p != m.processes[0] {
+		t.Error("Detach should return previously attached process")
+	}
+	if m.processes[0].mode.Load().(OutputMode) != OutputAll {
+		t.Error("process mode should be OutputAll after detach")
 	}
 }
 

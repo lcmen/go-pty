@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -18,9 +19,10 @@ type Process struct {
 	Entry
 	Color      string
 	cmd        *exec.Cmd
+	mode       atomic.Value
 	pty        *os.File
-	terminated chan struct{}
 	ptyMu      sync.RWMutex
+	terminated chan struct{}
 }
 
 func NewProcess(entry Entry, index int) *Process {
@@ -45,11 +47,11 @@ func (p *Process) Start() error {
 	return nil
 }
 
-func (p *Process) Stream(stdout io.Writer, mode func() OutputMode) error {
+func (p *Process) Stream(stdout io.Writer) error {
 	defer p.close()
 
 	prefix := fmt.Sprintf("%s[%s]\033[0m", p.Color, p.Name)
-	p.read(stdout, mode, prefix)
+	p.read(stdout, prefix)
 
 	// Notify that process exited and we don't need to send SIGKILL
 	close(p.terminated)
@@ -155,7 +157,7 @@ func (p *Process) lock(mode ptyLockMode) (unlock func(), err error) {
 	return u, nil
 }
 
-func (p *Process) read(stdout io.Writer, mode func() OutputMode, prefix string) {
+func (p *Process) read(stdout io.Writer, prefix string) {
 	unlock, err := p.lock(PtyReadLock)
 	if err != nil {
 		return
@@ -170,7 +172,8 @@ func (p *Process) read(stdout io.Writer, mode func() OutputMode, prefix string) 
 	buf := make([]byte, 4096)
 
 	for {
-		switch mode() {
+		mode := p.mode.Load().(OutputMode)
+		switch mode {
 		case OutputAll:
 			// Read and write line by line
 			line, err = reader.ReadBytes('\n')
