@@ -14,34 +14,19 @@ import (
 	"github.com/creack/pty"
 )
 
-var colorPalette = []string{
-	"\033[31m", // red
-	"\033[32m", // green
-	"\033[33m", // yellow
-	"\033[34m", // blue
-	"\033[35m", // magenta
-	"\033[36m", // cyan
-	"\033[91m", // bright red
-	"\033[92m", // bright green
-	"\033[93m", // bright yellow
-	"\033[94m", // bright blue
-	"\033[95m", // bright magenta
-	"\033[96m", // bright cyan
-}
-
 type Process struct {
-	Color string
 	Entry
+	Color      string
 	cmd        *exec.Cmd
-	terminated chan struct{}
 	pty        *os.File
+	terminated chan struct{}
 	ptyMu      sync.RWMutex
 }
 
 func NewProcess(entry Entry, index int) *Process {
 	return &Process{
 		Entry:      entry,
-		Color:      colorPalette[index%len(colorPalette)],
+		Color:      ColorPalette[index%len(ColorPalette)],
 		terminated: make(chan struct{}),
 	}
 }
@@ -60,7 +45,7 @@ func (p *Process) Start() error {
 	return nil
 }
 
-func (p *Process) Monitor(stdout io.Writer, mode func() OutputMode) error {
+func (p *Process) Stream(stdout io.Writer, mode func() OutputMode) error {
 	defer p.close()
 
 	prefix := fmt.Sprintf("%s[%s]\033[0m", p.Color, p.Name)
@@ -85,11 +70,11 @@ func (p *Process) Monitor(stdout io.Writer, mode func() OutputMode) error {
 }
 
 func (p *Process) Write(buf []byte) (int, error) {
-	p.ptyMu.RLock()
-	defer p.ptyMu.RUnlock()
-	if p.pty == nil {
-		return 0, fmt.Errorf("pty not initialized")
+	unlock, err := p.lock(PtyWriteLock)
+	if err != nil {
+		return 0, err
 	}
+	defer unlock()
 	return p.pty.Write(buf)
 }
 
@@ -111,20 +96,20 @@ func (p *Process) Shutdown(timeout time.Duration) {
 }
 
 func (p *Process) PtySize() (*pty.Winsize, error) {
-	p.ptyMu.RLock()
-	defer p.ptyMu.RUnlock()
-	if p.pty == nil {
-		return nil, fmt.Errorf("pty not initialized")
+	unlock, err := p.lock(PtyReadLock)
+	if err != nil {
+		return nil, err
 	}
+	defer unlock()
 	return pty.GetsizeFull(p.pty)
 }
 
 func (p *Process) PtyResize(ws *pty.Winsize) error {
-	p.ptyMu.Lock()
-	defer p.ptyMu.Unlock()
-	if p.pty == nil {
-		return fmt.Errorf("pty not initialized")
+	unlock, err := p.lock(PtyWriteLock)
+	if err != nil {
+		return err
 	}
+	defer unlock()
 	return pty.Setsize(p.pty, ws)
 }
 
@@ -152,13 +137,36 @@ func (p *Process) exitStatus() (int, string) {
 	return 0, ""
 }
 
-func (p *Process) read(stdout io.Writer, mode func() OutputMode, prefix string) {
-	reader := bufio.NewReader(p.pty)
+func (p *Process) lock(mode ptyLockMode) (unlock func(), err error) {
+	var u func()
 
-	var err error
+	if mode == PtyReadLock {
+		p.ptyMu.RLock()
+		u = func() { p.ptyMu.RUnlock() }
+	} else {
+		p.ptyMu.Lock()
+		u = func() { p.ptyMu.Unlock() }
+	}
+
+	if p.pty == nil {
+		u()
+		return nil, fmt.Errorf("pty not initialized")
+	}
+	return u, nil
+}
+
+func (p *Process) read(stdout io.Writer, mode func() OutputMode, prefix string) {
+	unlock, err := p.lock(PtyReadLock)
+	if err != nil {
+		return
+	}
+	pty := p.pty
+	unlock()
+
+	reader := bufio.NewReader(pty)
+
 	var line []byte
 	var n int
-
 	buf := make([]byte, 4096)
 
 	for {

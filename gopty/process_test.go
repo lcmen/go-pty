@@ -40,11 +40,11 @@ func TestProcess_Start(t *testing.T) {
 	}
 }
 
-func TestProcess_Monitor(t *testing.T) {
+func TestProcess_Stream(t *testing.T) {
 	t.Run("OutputAll prefixes each line", func(t *testing.T) {
 		var buf bytes.Buffer
 		p := stubProcess(t, "line1\nline2\n")
-		p.Monitor(&buf, func() OutputMode { return OutputAll })
+		p.Stream(&buf, func() OutputMode { return OutputAll })
 
 		expected := "\033[31m[web]\033[0m line1\r\n\033[31m[web]\033[0m line2\r\n\033[31m[web]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -55,7 +55,7 @@ func TestProcess_Monitor(t *testing.T) {
 	t.Run("OutputAttached passes through raw bytes", func(t *testing.T) {
 		var buf bytes.Buffer
 		p := stubProcess(t, "line1\nline2\n")
-		p.Monitor(&buf, func() OutputMode { return OutputAttached })
+		p.Stream(&buf, func() OutputMode { return OutputAttached })
 
 		expected := "line1\nline2\n\033[31m[web]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -66,7 +66,7 @@ func TestProcess_Monitor(t *testing.T) {
 	t.Run("OutputIgnored drops output but prints exit", func(t *testing.T) {
 		var buf bytes.Buffer
 		p := stubProcess(t, "line1\nline2\n")
-		p.Monitor(&buf, func() OutputMode { return OutputIgnored })
+		p.Stream(&buf, func() OutputMode { return OutputIgnored })
 
 		expected := "\033[31m[web]\033[0m exited (code 0)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -77,7 +77,7 @@ func TestProcess_Monitor(t *testing.T) {
 	t.Run("prints non-zero exit code", func(t *testing.T) {
 		var buf bytes.Buffer
 		p := stubProcess(t, "hello\n", 1)
-		p.Monitor(&buf, func() OutputMode { return OutputAll })
+		p.Stream(&buf, func() OutputMode { return OutputAll })
 
 		expected := "\033[31m[web]\033[0m hello\r\n\033[31m[web]\033[0m exited (code 1)\r\n"
 		if diff := cmp.Diff(expected, buf.String()); diff != "" {
@@ -93,7 +93,7 @@ func TestProcess_Shutdown(t *testing.T) {
 		t.Fatalf("Start failed: %v", err)
 	}
 
-	go p.Monitor(io.Discard, func() OutputMode { return OutputAll })
+	go p.Stream(io.Discard, func() OutputMode { return OutputAll })
 
 	p.Shutdown(200 * time.Millisecond)
 

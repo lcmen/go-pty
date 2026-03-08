@@ -132,6 +132,11 @@ func TestManager_Shutdown(t *testing.T) {
 
 		waitFor(t, func() bool { return strings.Count(buf.String(), "ready") >= 2 })
 		m.Shutdown()
+		waitFor(t, func() bool {
+			output := buf.String()
+			return strings.Contains(output, "[web]\033[0m exited") &&
+				strings.Contains(output, "[worker]\033[0m exited")
+		})
 
 		output := buf.String()
 		if !strings.Contains(output, "[web]\033[0m exited") {

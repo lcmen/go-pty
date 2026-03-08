@@ -46,7 +46,7 @@ func (m *Manager) StartAll() error {
 
 		m.wg.Go(func() {
 			// If one of the process crashed, shutdown the whole manager
-			if err := p.Monitor(m.stdout, m.mode(p)); err != nil {
+			if err := p.Stream(m.stdout, m.mode(p)); err != nil {
 				m.Shutdown()
 			}
 		})
