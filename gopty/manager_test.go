@@ -14,7 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
-// Buffer that is goroutine safe for tests
+// syncBuffer is a goroutine-safe buffer for tests
 type syncBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
@@ -138,8 +138,8 @@ func TestManager_Shutdown(t *testing.T) {
 		if err := m.StartAll(); err != nil {
 			t.Fatalf("StartAll failed: %v", err)
 		}
-
 		waitFor(t, func() bool { return strings.Count(buf.String(), "ready") >= 2 })
+
 		m.Shutdown()
 		waitFor(t, func() bool {
 			output := buf.String()
@@ -225,11 +225,11 @@ func TestManager_WriteToAttached(t *testing.T) {
 		m.WriteToAttached([]byte("hello"))
 		w.Close()
 
-		var buf syncBuffer
+		var buf bytes.Buffer
 		buf.ReadFrom(r)
 		// Expect '\n' from Attach(), then 'hello'
-		if buf.String() != "\nhello" {
-			t.Errorf("expected %q, got %q", "\nhello", buf.String())
+		if diff := cmp.Diff("\nhello", buf.String()); diff != "" {
+			t.Errorf("output mismatch (-expected +got):\n%s", diff)
 		}
 	})
 

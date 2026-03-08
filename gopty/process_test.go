@@ -43,8 +43,9 @@ func TestProcess_Start(t *testing.T) {
 func TestProcess_Stream(t *testing.T) {
 	t.Run("OutputAll prefixes each line", func(t *testing.T) {
 		var buf bytes.Buffer
-		p := stubProcess(t, "line1\nline2\n")
-		p.mode.Store(OutputAll)
+		p, w := stubProcess(t, "line1\nline2\n", 0)
+		w.Close()
+
 		p.Stream(&buf)
 
 		expected := "\033[31m[web]\033[0m line1\r\n\033[31m[web]\033[0m line2\r\n\033[31m[web]\033[0m exited (code 0)\r\n"
@@ -55,8 +56,10 @@ func TestProcess_Stream(t *testing.T) {
 
 	t.Run("OutputAttached passes through raw bytes", func(t *testing.T) {
 		var buf bytes.Buffer
-		p := stubProcess(t, "line1\nline2\n")
+		p, w := stubProcess(t, "line1\nline2\n", 0)
 		p.mode.Store(OutputAttached)
+		w.Close()
+
 		p.Stream(&buf)
 
 		expected := "line1\nline2\n\033[31m[web]\033[0m exited (code 0)\r\n"
@@ -67,8 +70,10 @@ func TestProcess_Stream(t *testing.T) {
 
 	t.Run("OutputIgnored drops output but prints exit", func(t *testing.T) {
 		var buf bytes.Buffer
-		p := stubProcess(t, "line1\nline2\n")
+		p, w := stubProcess(t, "line1\nline2\n", 0)
 		p.mode.Store(OutputIgnored)
+		w.Close()
+
 		p.Stream(&buf)
 
 		expected := "\033[31m[web]\033[0m exited (code 0)\r\n"
@@ -79,8 +84,9 @@ func TestProcess_Stream(t *testing.T) {
 
 	t.Run("prints non-zero exit code", func(t *testing.T) {
 		var buf bytes.Buffer
-		p := stubProcess(t, "hello\n", 1)
-		p.mode.Store(OutputAll)
+		p, w := stubProcess(t, "hello\n", 1)
+		w.Close()
+
 		p.Stream(&buf)
 
 		expected := "\033[31m[web]\033[0m hello\r\n\033[31m[web]\033[0m exited (code 1)\r\n"
@@ -91,13 +97,12 @@ func TestProcess_Stream(t *testing.T) {
 }
 
 func TestProcess_Shutdown(t *testing.T) {
-	p := NewProcess(Entry{Name: "web", Command: "sleep 60"}, 0)
+	p := stubProcessWithCommand(t, "sleep 60")
 
 	if err := p.Start(); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
-	p.mode.Store(OutputAll)
 	go p.Stream(io.Discard)
 
 	p.Shutdown(200 * time.Millisecond)
@@ -124,7 +129,9 @@ func TestProcess_Write(t *testing.T) {
 	}
 }
 
-func stubProcess(t *testing.T, input string, exitCodes ...int) *Process {
+// stubProcess creates a test process with mocked PTY for Stream tests.
+// Returns the process and the write end of the PTY pipe.
+func stubProcess(t *testing.T, input string, exitCode int) (*Process, *os.File) {
 	t.Helper()
 
 	r, w, err := os.Pipe()
@@ -132,25 +139,30 @@ func stubProcess(t *testing.T, input string, exitCodes ...int) *Process {
 		t.Fatalf("os.Pipe failed: %v", err)
 	}
 
-	exitCode := 0
-	if len(exitCodes) > 0 {
-		exitCode = exitCodes[0]
+	if _, err := w.WriteString(input); err != nil {
+		t.Fatalf("failed to write input: %v", err)
 	}
 
-	var cmd *exec.Cmd
-	if exitCode == 0 {
-		cmd = exec.Command("true")
-	} else {
-		cmd = exec.Command("sh", "-c", fmt.Sprintf("exit %d", exitCode))
-	}
-	cmd.Start()
-
-	p := NewProcess(Entry{Name: "web", Command: "cmd"}, 0)
-	p.cmd = cmd
+	p := stubProcessWithCommand(t, "cmd")
 	p.pty = r
 
-	w.WriteString(input)
-	w.Close()
+	// Create command that exits with specified code
+	if exitCode == 0 {
+		p.cmd = exec.Command("true")
+	} else {
+		p.cmd = exec.Command("sh", "-c", fmt.Sprintf("exit %d", exitCode))
+	}
+	p.cmd.Start()
 
+	return p, w
+}
+
+// stubProcessWithCommand creates a test process with a real command for lifecycle tests.
+// Use this for tests that need actual process execution (e.g., Shutdown tests).
+func stubProcessWithCommand(t *testing.T, command string) *Process {
+	t.Helper()
+
+	p := NewProcess(Entry{Name: "web", Command: command}, 0)
+	p.mode.Store(OutputAll)
 	return p
 }
