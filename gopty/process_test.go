@@ -44,7 +44,6 @@ func TestProcess_Stream(t *testing.T) {
 	t.Run("OutputAll prefixes each line", func(t *testing.T) {
 		var buf bytes.Buffer
 		p, w := stubProcess(t, "line1\nline2\n", 0)
-		p.mode.Store(OutputAll)
 		w.Close()
 
 		p.Stream(&buf)
@@ -86,7 +85,6 @@ func TestProcess_Stream(t *testing.T) {
 	t.Run("prints non-zero exit code", func(t *testing.T) {
 		var buf bytes.Buffer
 		p, w := stubProcess(t, "hello\n", 1)
-		p.mode.Store(OutputAll)
 		w.Close()
 
 		p.Stream(&buf)
@@ -105,7 +103,6 @@ func TestProcess_Shutdown(t *testing.T) {
 		t.Fatalf("Start failed: %v", err)
 	}
 
-	p.mode.Store(OutputAll)
 	go p.Stream(io.Discard)
 
 	p.Shutdown(200 * time.Millisecond)
@@ -166,5 +163,6 @@ func stubProcessWithCommand(t *testing.T, command string) *Process {
 	t.Helper()
 
 	p := NewProcess(Entry{Name: "web", Command: command}, 0)
+	p.mode.Store(OutputAll)
 	return p
 }
