@@ -183,29 +183,29 @@ When we create a PTY and give the slave end to a child process, the slave fd is 
 
 ## Atomic Operations — Lock-Free Attach/Detach
 
-go-pty runs a goroutine per process, all reading output concurrently. Each goroutine calls an `outputMode` callback on every line to decide how to route output (prefixed, raw, or ignored). This callback reads `m.attached` to check which process is currently attached.
+go-pty runs a goroutine per process, all reading output concurrently. Each goroutine checks its process's output mode on every read iteration to decide how to route output (prefixed, raw, or ignored).
 
-Since this is a hot path (called per line of output), go-pty uses `atomic.Pointer[Process]` instead of a mutex:
+Since this is a hot path (called per chunk of output), each process stores its mode in an `atomic.Value` instead of behind a mutex:
 
 ```go
-type Manager struct {
-    attached atomic.Pointer[Process]
+type Process struct {
+    mode atomic.Value  // stores OutputMode
     // ...
 }
 ```
 
-`atomic.Pointer` provides lock-free reads and writes — goroutines never block each other. The `outputMode` closure captures both the manager and the specific process, so each goroutine can check attachment status without locking:
+`atomic.Value` provides lock-free reads and writes — goroutines never block each other. The `read` loop on each process loads the mode atomically to decide how to handle the current chunk:
 
 ```go
-func (m *Manager) outputMode(p *Process) func() OutputMode {
-    return func() OutputMode {
-        attached := m.Attached()  // atomic load
-        if attached == nil { return OutputAll }
-        if attached == p { return OutputAttached }
-        return OutputIgnored
-    }
+mode := p.mode.Load().(OutputMode)
+switch mode {
+case OutputAll:      // prefix each line and write
+case OutputAttached: // write raw bytes directly
+case OutputIgnored:  // read and discard
 }
 ```
+
+When the manager attaches or detaches a process, it updates all processes' modes at once via `updateAllModes` — the attached process gets `OutputAttached`, all others get `OutputIgnored`, and on detach everyone returns to `OutputAll`.
 
 Note: concurrent writes to stdout from multiple goroutines can still interleave. In practice, `fmt.Fprintf` with short lines rarely produces garbled output, and the colored prefixes make it clear which process each line belongs to.
 
