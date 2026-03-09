@@ -1,4 +1,4 @@
-.PHONY: build clean install lint test
+.PHONY: build clean install lint stats test
 
 BINARY = go-pty
 
@@ -14,6 +14,9 @@ lint:
 
 install: build
 	cp $(BINARY) $(HOME)/.local/bin
+
+stats:
+	@sh stats.sh
 
 test:
 	go test -race ./gopty/

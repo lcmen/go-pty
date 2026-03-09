@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestController_Run(t *testing.T) {
@@ -70,8 +72,8 @@ func TestController_Run(t *testing.T) {
 		var buf bytes.Buffer
 		buf.ReadFrom(r)
 		// Expect '\n' from Attach(), then 'ab' (ctrl+c is ignored)
-		if diff := strings.Compare("\nab", buf.String()); diff != 0 {
-			t.Errorf("forwarded data mismatch: expected %q, got %q", "\nab", buf.String())
+		if diff := cmp.Diff("\nab", buf.String()); diff != "" {
+			t.Errorf("forwarded data mismatch (-expected +got):\n%s", diff)
 		}
 	})
 }
