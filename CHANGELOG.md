@@ -2,6 +2,10 @@
 
 All notable changes to test improvements will be documented in this file.
 
+## 0.1.0
+
+Public release.
+
 ## 0.0.4
 
 Fix race conditions, cleanups and process monitoring.
