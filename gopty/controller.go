@@ -93,6 +93,8 @@ func (c *Controller) handleAttached() {
 	case byteCtrlC:
 		fmt.Fprintf(c.stdout, "\r\n[go-pty] (press ctrl+] to detach first, then press ctrl+c again)\r\n")
 	default:
-		c.manager.WriteToAttached([]byte{buf})
+		if _, err := c.manager.WriteToAttached([]byte{buf}); err != nil {
+			c.err.Store(&err)
+		}
 	}
 }
