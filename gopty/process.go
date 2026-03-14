@@ -3,6 +3,7 @@ package gopty
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -128,7 +129,8 @@ func (p *Process) close() error {
 
 func (p *Process) exitStatus() (int, string) {
 	if err := p.cmd.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
 				return -1, ws.Signal().String()
 			}
@@ -172,7 +174,10 @@ func (p *Process) read(stdout io.Writer, prefix string) {
 	buf := make([]byte, 4096)
 
 	for {
-		mode := p.mode.Load().(OutputMode)
+		mode, ok := p.mode.Load().(OutputMode)
+		if !ok {
+			mode = OutputAll
+		}
 		switch mode {
 		case OutputAll:
 			// Read and write line by line

@@ -89,7 +89,7 @@ func (m *Manager) Shutdown() {
 
 func (m *Manager) ResizeAll(ws *pty.Winsize) {
 	for _, p := range m.processes {
-		p.PtyResize(ws)
+		_ = p.PtyResize(ws)
 	}
 }
 
@@ -107,7 +107,8 @@ func (m *Manager) WriteToAttached(buf []byte) (int, error) {
 
 func (m *Manager) attached() *Process {
 	for _, p := range m.processes {
-		if p.mode.Load().(OutputMode) == OutputAttached {
+		mode, ok := p.mode.Load().(OutputMode)
+		if ok && mode == OutputAttached {
 			return p
 		}
 	}
