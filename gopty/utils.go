@@ -16,6 +16,8 @@ const (
 
 	seqArrowUp   = "\x1b[A"
 	seqArrowDown = "\x1b[B"
+	seqEnter     = "\r"
+	seqEsc       = "\x1b"
 )
 
 var ColorPalette = []string{
