@@ -2,6 +2,10 @@
 
 All notable changes to test improvements will be documented in this file.
 
+## 0.1.1
+
+Improvements for errors handling.
+
 ## 0.1.0
 
 Public release.
