@@ -96,9 +96,9 @@ func (d *Dialog) readKey() (key, error) {
 		return keyUp, nil
 	case seqArrowDown:
 		return keyDown, nil
-	case string(byteEnter):
+	case seqEnter:
 		return keyEnter, nil
-	case string(byteEsc):
+	case seqEsc:
 		return keyEsc, nil
 	default:
 		return keyOther, nil

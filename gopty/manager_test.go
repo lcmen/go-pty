@@ -68,7 +68,8 @@ func TestManager_Attach(t *testing.T) {
 		if p != m.processes[0] {
 			t.Error("attached should point to web process")
 		}
-		if m.processes[0].mode.Load().(OutputMode) != OutputAttached {
+		mode, ok := m.processes[0].mode.Load().(OutputMode)
+		if !ok || mode != OutputAttached {
 			t.Error("process mode should be OutputAttached")
 		}
 	})
@@ -101,7 +102,8 @@ func TestManager_Detach(t *testing.T) {
 	if p != m.processes[0] {
 		t.Error("Detach should return previously attached process")
 	}
-	if m.processes[0].mode.Load().(OutputMode) != OutputAll {
+	mode, ok := m.processes[0].mode.Load().(OutputMode)
+	if !ok || mode != OutputAll {
 		t.Error("process mode should be OutputAll after detach")
 	}
 }
