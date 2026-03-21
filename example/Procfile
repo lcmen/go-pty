@@ -1,2 +1,2 @@
-ruby: env PORT=8081 ruby app.rb
+ruby: PORT=${PORT:-8081} ruby app.rb
 python: python3 -m http.server 8080

@@ -13,7 +13,7 @@ import (
 
 func TestController_Run(t *testing.T) {
 	stubManager := func() *Manager {
-		return NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard)
+		return NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard, nil)
 	}
 
 	stubKeypresses := func(keys ...byte) io.Reader {

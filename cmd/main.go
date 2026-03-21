@@ -30,6 +30,7 @@ func main() {
 
 	procfilePath := flag.String("f", "./Procfile", "path to Procfile")
 	serviceFilter := flag.String("s", "", "comma-separated list of services to run (e.g. web,worker)")
+	envFile := flag.String("e", "", "path to .env file")
 	flag.Parse()
 
 	fmt.Printf("%s\n\n", banner)
@@ -45,7 +46,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	m, err := initManager(entries, os.Stdout)
+	envs, err := parseEnvs(*envFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	m, err := initManager(entries, os.Stdout, envs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -83,8 +90,15 @@ func parseEntries(path, filter string) ([]gopty.Entry, error) {
 	return gopty.FilterEntries(entries, names)
 }
 
-func initManager(entries []gopty.Entry, stdout io.Writer) (*gopty.Manager, error) {
-	m := gopty.NewManager(entries, stdout)
+func parseEnvs(envFile string) ([]gopty.Env, error) {
+	if envFile == "" {
+		return nil, nil
+	}
+	return gopty.ParseEnvFile(envFile)
+}
+
+func initManager(entries []gopty.Entry, stdout io.Writer, envs []gopty.Env) (*gopty.Manager, error) {
+	m := gopty.NewManager(entries, stdout, envs)
 	if err := m.StartAll(); err != nil {
 		return nil, err
 	}

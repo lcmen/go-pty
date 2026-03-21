@@ -17,11 +17,11 @@ type Manager struct {
 	wg          sync.WaitGroup
 }
 
-func NewManager(entries []Entry, stdout io.Writer) *Manager {
+func NewManager(entries []Entry, stdout io.Writer, env []Env) *Manager {
 	m := &Manager{stdout: stdout}
 
 	for i, entry := range entries {
-		p := NewProcess(entry, i)
+		p := NewProcess(entry, i, env)
 		p.mode.Store(OutputAll)
 		m.processes = append(m.processes, p)
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -82,40 +83,28 @@ func FilterEntries(entries []Entry, names []string) ([]Entry, error) {
 	return result, nil
 }
 
-func ParseProcfile(path string) ([]Entry, error) {
-	file, err := os.Open(path)
+func ParseEnvFile(path string) ([]Env, error) {
+	var envs []Env
+	err := readFile(path, "=", func(key, value string) {
+		envs = append(envs, NewEnv(key, value))
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to open Procfile: %w", err)
+		return nil, err
 	}
-	defer file.Close()
+	return ExpandAll(envs), nil
+}
 
+func ParseProcfile(path string) ([]Entry, error) {
 	var entries []Entry
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
-			continue
-		}
-
-		name, command, ok := strings.Cut(line, ":")
-		if !ok {
-			return nil, fmt.Errorf("missing colon separator in: %q", line)
-		}
-
+	err := readFile(path, ":", func(key, value string) {
 		entries = append(entries, Entry{
-			Name:    strings.TrimSpace(name),
-			Command: strings.TrimSpace(command),
+			Name:    strings.TrimSpace(key),
+			Command: strings.TrimSpace(value),
 		})
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read Procfile: %w", err)
-	}
-
-	if len(entries) == 0 {
-		return nil, fmt.Errorf("no process defined in Procfile")
-	}
-
 	return entries, nil
 }
 
@@ -132,4 +121,40 @@ func readBytes(r io.Reader, n int) ([]byte, error) {
 		return nil, err
 	}
 	return buf[:read], nil
+}
+
+func readFile(path string, separator string, fn func(key, value string)) error {
+	name := filepath.Base(path)
+
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", name, err)
+	}
+	defer file.Close()
+
+	var count int
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		key, value, ok := strings.Cut(line, separator)
+		if !ok {
+			return fmt.Errorf("missing %s separator in: %q", separator, line)
+		}
+		fn(key, value)
+		count++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to read %s: %w", name, err)
+	}
+
+	if count == 0 {
+		return fmt.Errorf("no entry defined in %s", name)
+	}
+
+	return nil
 }
