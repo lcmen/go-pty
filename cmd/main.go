@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/creack/pty"
@@ -28,12 +29,23 @@ func main() {
 	}
 
 	procfilePath := flag.String("f", "./Procfile", "path to Procfile")
+	serviceFilter := flag.String("s", "", "comma-separated list of services to run (e.g. web,worker)")
 	flag.Parse()
 
 	fmt.Printf("%s\n\n", banner)
-	fmt.Printf("Starting process(es) from %s:\n\n", *procfilePath)
+	if *serviceFilter != "" {
+		fmt.Printf("Starting %s process(es):\n\n", *serviceFilter)
+	} else {
+		fmt.Printf("Starting all process(es):\n\n")
+	}
 
-	m, err := initManager(*procfilePath, os.Stdout)
+	entries, err := parseEntries(*procfilePath, *serviceFilter)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	m, err := initManager(entries, os.Stdout)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -54,12 +66,24 @@ func main() {
 	c.Cleanup()
 }
 
-func initManager(path string, stdout io.Writer) (*gopty.Manager, error) {
+func parseEntries(path, filter string) ([]gopty.Entry, error) {
 	entries, err := gopty.ParseProcfile(path)
 	if err != nil {
 		return nil, err
 	}
 
+	if filter == "" {
+		return entries, nil
+	}
+
+	names := strings.Split(filter, ",")
+	for i, n := range names {
+		names[i] = strings.TrimSpace(n)
+	}
+	return gopty.FilterEntries(entries, names)
+}
+
+func initManager(entries []gopty.Entry, stdout io.Writer) (*gopty.Manager, error) {
 	m := gopty.NewManager(entries, stdout)
 	if err := m.StartAll(); err != nil {
 		return nil, err

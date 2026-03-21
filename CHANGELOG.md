@@ -2,6 +2,10 @@
 
 All notable changes to test improvements will be documented in this file.
 
+## Unreleased
+
+Add `-s` flag to run a subset of processes from the Procfile (e.g. `go-pty -s web,worker`).
+
 ## 0.1.1
 
 Improvements for errors handling.

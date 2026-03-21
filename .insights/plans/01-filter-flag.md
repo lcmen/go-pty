@@ -18,17 +18,17 @@ Add `FilterEntries` to `utils.go` as a pure function that validates and filters.
 
 ## Changes
 
-- [ ] **`gopty/utils.go`** — Add `FilterEntries(entries []Entry, names []string) ([]Entry, error)`
+- [x] **`gopty/utils.go`** — Add `FilterEntries(entries []Entry, names []string) ([]Entry, error)`
   - Return only entries whose `Name` matches one of the given names
   - If a name in `names` doesn't match any entry, return error listing the unknown name(s)
   - If `names` is empty, return all entries unchanged (no-op)
 
-- [ ] **`gopty/utils_test.go`** — Add `TestFilterEntries` with subtests:
+- [x] **`gopty/utils_test.go`** — Add `TestFilterEntries` with subtests:
   - Filters entries to matching names
   - Returns all entries when names is empty/nil
   - Returns error for unknown names
 
-- [ ] **`cmd/main.go`** — Add `-s` flag and wire filtering
+- [x] **`cmd/main.go`** — Add `-s` flag and wire filtering
   - Add `serviceFilter := flag.String("s", "", "comma-separated list of services to run")`
   - In `initManager`, accept `filter string` parameter
   - If filter is non-empty, split on `,`, trim whitespace, call `FilterEntries` before `NewManager`
@@ -37,14 +37,20 @@ Add `FilterEntries` to `utils.go` as a pure function that validates and filters.
 ## Success Criteria
 
 ### Automated:
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ### Manual:
-- [ ] `go-pty -s web` runs only the `web` process
-- [ ] `go-pty -s web,worker` runs both
-- [ ] `go-pty -s nonexistent` fails with a clear error
-- [ ] `go-pty` (no flag) runs all processes as before
+- [x] `go-pty -s web` runs only the `web` process
+- [x] `go-pty -s web,worker` runs both
+- [x] `go-pty -s nonexistent` fails with a clear error
+- [x] `go-pty` (no flag) runs all processes as before
+
+## Implementation Notes
+
+### Deviations from Original Design
+- **`parseEntries` helper function** — Instead of modifying `initManager` to accept a `filter string` parameter, a separate `parseEntries(path, filter string)` function was created at `cmd/main.go:69-84`. This provides cleaner separation of concerns between parsing and initialization.
+- **`flag.Usage` not explicitly updated** — The plan mentioned updating `flag.Usage` to document the new flag. However, the flag description `"comma-separated list of services to run (e.g. web,worker)"` is already shown via `flag.PrintDefaults()` which is called in the default `flag.Usage` function. No custom usage text was added.
 
 ## References
 - `cmd/main.go:30` — existing `-f` flag pattern

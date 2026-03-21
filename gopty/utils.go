@@ -55,6 +55,33 @@ type Entry struct {
 	Command string
 }
 
+func FilterEntries(entries []Entry, names []string) ([]Entry, error) {
+	if len(names) == 0 {
+		return entries, nil
+	}
+
+	index := make(map[string]Entry, len(entries))
+	for _, e := range entries {
+		index[e.Name] = e
+	}
+
+	var result []Entry
+	var unknown []string
+	for _, name := range names {
+		if e, ok := index[name]; ok {
+			result = append(result, e)
+		} else {
+			unknown = append(unknown, name)
+		}
+	}
+
+	if len(unknown) > 0 {
+		return nil, fmt.Errorf("unknown service(s): %s", strings.Join(unknown, ", "))
+	}
+
+	return result, nil
+}
+
 func ParseProcfile(path string) ([]Entry, error) {
 	file, err := os.Open(path)
 	if err != nil {
