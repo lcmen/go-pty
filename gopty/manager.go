@@ -12,13 +12,19 @@ import (
 
 type Manager struct {
 	processes   []*Process
+	entries     []Entry
 	stdout      io.Writer
+	env         []Env
 	terminating sync.Once
 	wg          sync.WaitGroup
 }
 
 func NewManager(entries []Entry, stdout io.Writer, env []Env) *Manager {
-	m := &Manager{stdout: stdout}
+	m := &Manager{
+		stdout:  stdout,
+		entries: entries,
+		env:     env,
+	}
 
 	for i, entry := range entries {
 		p := NewProcess(entry, i, env)
@@ -85,6 +91,16 @@ func (m *Manager) Shutdown() {
 		}
 		wg.Wait()
 	})
+}
+
+func (m *Manager) Restart() (*Manager, error) {
+	m.Shutdown()
+	m.WaitAll()
+	newManager := NewManager(m.entries, m.stdout, m.env)
+	if err := newManager.StartAll(); err != nil {
+		return nil, err
+	}
+	return newManager, nil
 }
 
 func (m *Manager) ResizeAll(ws *pty.Winsize) {

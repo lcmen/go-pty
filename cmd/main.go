@@ -65,11 +65,10 @@ func main() {
 	defer restore()
 
 	c := gopty.NewController(m, os.Stdin, os.Stdout)
-	listenResize(ctx, m.ResizeAll)
+	listenResize(ctx, c.ResizeAll)
 	listenTerm(ctx, c.Shutdown)
 
-	go c.Run()
-	m.WaitAll()
+	c.Run()
 	c.Cleanup()
 }
 

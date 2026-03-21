@@ -11,6 +11,7 @@ import (
 
 const (
 	byteCtrlC       = 3  // ctrl+c
+	byteCtrlR       = 18 // ctrl+r
 	byteCtrlBracket = 29 // ctrl+]
 	byteEsc         = '\x1b'
 	byteEnter       = '\r'
