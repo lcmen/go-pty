@@ -9,6 +9,45 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+func TestFilterEntries(t *testing.T) {
+	entries := []Entry{
+		{Name: "web", Command: "rails server"},
+		{Name: "worker", Command: "sidekiq"},
+		{Name: "clock", Command: "clockwork"},
+	}
+
+	t.Run("filters entries to matching names", func(t *testing.T) {
+		got, err := FilterEntries(entries, []string{"web", "worker"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := []Entry{
+			{Name: "web", Command: "rails server"},
+			{Name: "worker", Command: "sidekiq"},
+		}
+		if diff := cmp.Diff(expected, got); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+	})
+
+	t.Run("returns all entries when names is empty", func(t *testing.T) {
+		got, err := FilterEntries(entries, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if diff := cmp.Diff(entries, got); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+	})
+
+	t.Run("returns error for unknown names", func(t *testing.T) {
+		_, err := FilterEntries(entries, []string{"web", "nonexistent"})
+		if err == nil {
+			t.Error("expected error for unknown service")
+		}
+	})
+}
+
 func TestParseProcfile(t *testing.T) {
 	writeProcfile := func(t *testing.T, content string) string {
 		path := filepath.Join(t.TempDir(), "Procfile")
