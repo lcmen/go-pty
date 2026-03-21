@@ -48,6 +48,80 @@ func TestFilterEntries(t *testing.T) {
 	})
 }
 
+func TestParseEnvFile(t *testing.T) {
+	writeEnvFile := func(t *testing.T, content string) string {
+		path := filepath.Join(t.TempDir(), ".env")
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to create temp file: %v", err)
+		}
+		return path
+	}
+
+	t.Run("parses key=value pairs", func(t *testing.T) {
+		path := writeEnvFile(t, "FOO=bar\nBAZ=qux")
+		envs, err := ParseEnvFile(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := []Env{
+			{Key: "FOO", Value: "bar"},
+			{Key: "BAZ", Value: "qux"},
+		}
+		if diff := cmp.Diff(expected, envs); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+	})
+
+	t.Run("skips comments and blank lines", func(t *testing.T) {
+		path := writeEnvFile(t, "# comment\nFOO=bar\n\n   \nBAZ=qux")
+		envs, err := ParseEnvFile(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := []Env{
+			{Key: "FOO", Value: "bar"},
+			{Key: "BAZ", Value: "qux"},
+		}
+		if diff := cmp.Diff(expected, envs); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+	})
+
+	t.Run("handles values containing equals sign", func(t *testing.T) {
+		path := writeEnvFile(t, "EQ=http://example.com?a=b&c=d")
+		envs, err := ParseEnvFile(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := []Env{{Key: "EQ", Value: "http://example.com?a=b&c=d"}}
+		if diff := cmp.Diff(expected, envs); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+	})
+
+	t.Run("expands env var references", func(t *testing.T) {
+		path := writeEnvFile(t, "BASE=/app\nLOG=${BASE}/logs")
+		envs, err := ParseEnvFile(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := []Env{
+			{Key: "BASE", Value: "/app"},
+			{Key: "LOG", Value: "/app/logs"},
+		}
+		if diff := cmp.Diff(expected, envs); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+	})
+
+	t.Run("returns error for missing file", func(t *testing.T) {
+		_, err := ParseEnvFile("/nonexistent/path/.env")
+		if err == nil {
+			t.Error("expected error for missing file")
+		}
+	})
+}
+
 func TestParseProcfile(t *testing.T) {
 	writeProcfile := func(t *testing.T, content string) string {
 		path := filepath.Join(t.TempDir(), "Procfile")

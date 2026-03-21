@@ -13,8 +13,10 @@ Press `ctrl+]` to attach to a process and get a full interactive terminal sessio
 ## Usage
 
 ```bash
-go-pty           # reads ./Procfile
-go-pty -f FILE   # reads a specific Procfile
+go-pty                  # reads ./Procfile
+go-pty -f FILE          # reads a specific Procfile
+go-pty -s web,worker    # run only specific processes
+go-pty -e .env          # load environment variables from file
 ```
 
 ### Procfile format
@@ -24,6 +26,16 @@ web: bundle exec rails server -p 3000
 worker: bundle exec sidekiq
 css: tailwindcss --watch
 ```
+
+### Environment file format
+
+```
+FOO=bar
+BASE=/app
+LOG=${BASE}/logs
+```
+
+Variables are expanded in order. Use `${VAR}` syntax to reference previously defined variables or existing environment variables.
 
 ### Keyboard shortcuts
 

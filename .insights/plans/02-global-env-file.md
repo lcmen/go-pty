@@ -23,39 +23,44 @@ Add a `-e` flag to load a `.env` file and pass its variables to all child proces
 
 ## Changes
 
-- [ ] **`gopty/utils.go`** — Add `Env` struct and `ParseEnvFile`
+- [x] **`gopty/env.go`** (new) — Dedicated env file
   - `Env` struct with `Key` and `Value` string fields
-  - `ParseEnvFile(path string) ([]Env, error)` — skip blank lines and `#` comments, split on first `=`, expand `${VAR}` references using values parsed so far
+  - `ParseEnv(line string) (Env, error)` — parses a single line, trims key/value, returns error for empty/comment/missing separator
+  - `Expand(expanded map[string]string) string` — method on Env, expands `${VAR}` references using loop for multiple references per value
 
-- [ ] **`gopty/utils_test.go`** — Add `TestParseEnvFile` with subtests:
+- [x] **`gopty/env_test.go`** (new) — Test `ParseEnv` and `Env.Expand`
+  - `TestParseEnv`: parses key=value, trims, error for empty/comment/missing separator
+  - `TestEnv_Expand`: returns unchanged, expands from map, falls back to os env, handles multiple refs
+
+- [x] **`gopty/utils_test.go`** — Add `TestParseEnvFile` with subtests:
   - Parses key=value pairs
   - Skips comments and blank lines
   - Handles values containing `=`
-  - Expands `${VAR}` references
+  - Returns unexpanded values for expansion at process start
   - Returns error for missing file
 
-- [ ] **`gopty/process.go`** — Add env support
+- [x] **`gopty/process.go`** — Add env support
   - Add `env []Env` field to `Process` struct
   - Change `NewProcess(entry Entry, index int, env []Env) *Process`
-  - In `Start()`, if `p.env != nil`, range over slice and build `cmd.Env = append(os.Environ(), fmt.Sprintf("%s=%s", e.Key, e.Value)...)` inline
+  - In `Start()`, if `p.env != nil`, build `expanded` map, call `e.Expand(expanded)` for each env, build `cmd.Env`
 
-- [ ] **`gopty/manager.go`** — Thread `[]Env` through
+- [x] **`gopty/manager.go`** — Thread `[]Env` through
   - Change `NewManager(entries []Entry, stdout io.Writer, env []Env) *Manager`
   - Store env, pass to each `NewProcess` call
 
-- [ ] **`cmd/main.go`** — Add `-e` flag
+- [x] **`cmd/main.go`** — Add `-e` flag
   - Add `envFile := flag.String("e", "", "path to .env file")`
   - If set, call `ParseEnvFile`, fail fast on error
   - Pass `[]Env` (or nil) to `NewManager`
 
-- [ ] **`gopty/process_test.go`** — Update `NewProcess` calls to pass `nil` as third arg
-- [ ] **`gopty/manager_test.go`** — Update `NewManager` calls to pass `nil` as third arg
+- [x] **`gopty/process_test.go`** — Update `NewProcess` calls to pass `nil` as third arg
+- [x] **`gopty/manager_test.go`** — Update `NewManager` calls to pass `nil` as third arg
 
 ## Success Criteria
 
 ### Automated:
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ### Manual:
 - [ ] `.env` with `FOO=bar`, Procfile `web: echo $FOO` → prints `bar`
@@ -64,8 +69,8 @@ Add a `-e` flag to load a `.env` file and pass its variables to all child proces
 - [ ] `go-pty` (no `-e`) works as before
 
 ## References
-- `gopty/utils.go:53-56` — `Entry` struct (same pattern for `Env`)
-- `gopty/utils.go:58-93` — `ParseProcfile` (same pattern for `ParseEnvFile`)
+- `gopty/env.go` — `Env` struct, `NewEnv`, `Expand` functions
+- `gopty/utils.go` — `ParseEnvFile`, `Entry` struct, `ParseProcfile`
 - `gopty/process.go:19-27` — `Process` struct
 - `gopty/process.go:37-49` — `Start()`
 - `gopty/manager.go:20-30` — `NewManager`

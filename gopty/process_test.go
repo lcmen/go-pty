@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 )
 
 func TestNewProcess(t *testing.T) {
-	p := NewProcess(Entry{Name: "web", Command: "bundle exec rails server"}, 0)
+	p := NewProcess(Entry{Name: "web", Command: "bundle exec rails server"}, 0, nil)
 
 	if diff := cmp.Diff("web", p.Name); diff != "" {
 		t.Errorf("Process.Name mismatch (-expected +got):\n%s", diff)
@@ -25,19 +26,44 @@ func TestNewProcess(t *testing.T) {
 }
 
 func TestProcess_Start(t *testing.T) {
-	p := NewProcess(Entry{Name: "web", Command: "echo hello"}, 0)
+	t.Run("sets cmd and pty", func(t *testing.T) {
+		p := NewProcess(Entry{Name: "web", Command: "echo hello"}, 0, nil)
 
-	if err := p.Start(); err != nil {
-		t.Fatalf("Start failed: %v", err)
-	}
+		if err := p.Start(); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
 
-	if p.cmd == nil || p.cmd.Process == nil {
-		t.Fatal("expected cmd.Process to be set after Start")
-	}
+		if p.cmd == nil || p.cmd.Process == nil {
+			t.Fatal("expected cmd.Process to be set after Start")
+		}
 
-	if p.pty == nil {
-		t.Fatal("expected pty to be set after Start")
-	}
+		if p.pty == nil {
+			t.Fatal("expected pty to be set after Start")
+		}
+
+		var buf bytes.Buffer
+		p.Stream(&buf)
+
+		if !strings.Contains(buf.String(), "hello") {
+			t.Errorf("expected output to contain %q, got: %s", "hello", buf.String())
+		}
+	})
+
+	t.Run("sets env vars on process", func(t *testing.T) {
+		env := []Env{{Key: "FOO", Value: "bar"}}
+		p := NewProcess(Entry{Name: "web", Command: "echo $FOO"}, 0, env)
+
+		if err := p.Start(); err != nil {
+			t.Fatalf("Start failed: %v", err)
+		}
+
+		var buf bytes.Buffer
+		p.Stream(&buf)
+
+		if !strings.Contains(buf.String(), "bar") {
+			t.Errorf("expected output to contain %q, got: %s", "bar", buf.String())
+		}
+	})
 }
 
 func TestProcess_Stream(t *testing.T) {
@@ -116,7 +142,7 @@ func TestProcess_Shutdown(t *testing.T) {
 
 func TestProcess_Write(t *testing.T) {
 	r, w, _ := os.Pipe()
-	p := NewProcess(Entry{Name: "web", Command: "cmd"}, 0)
+	p := NewProcess(Entry{Name: "web", Command: "cmd"}, 0, nil)
 	p.pty = w
 
 	p.Write([]byte("hello"))
@@ -162,7 +188,7 @@ func stubProcess(t *testing.T, input string, exitCode int) (*Process, *os.File) 
 func stubProcessWithCommand(t *testing.T, command string) *Process {
 	t.Helper()
 
-	p := NewProcess(Entry{Name: "web", Command: command}, 0)
+	p := NewProcess(Entry{Name: "web", Command: command}, 0, nil)
 	p.mode.Store(OutputAll)
 	return p
 }

@@ -42,7 +42,7 @@ func TestNewManager(t *testing.T) {
 	m := NewManager([]Entry{
 		{Name: "web", Command: "echo hello"},
 		{Name: "worker", Command: "echo world"},
-	}, io.Discard)
+	}, io.Discard, nil)
 
 	expected := []*Process{
 		{Entry: Entry{Name: "web", Command: "echo hello"}, Color: "\033[31m"},
@@ -58,7 +58,7 @@ func TestManager_Attach(t *testing.T) {
 	t.Run("attaches process at valid index", func(t *testing.T) {
 		m := NewManager([]Entry{
 			{Name: "web", Command: "cmd1"},
-		}, io.Discard)
+		}, io.Discard, nil)
 
 		p, err := m.Attach(0)
 		if err != nil {
@@ -77,7 +77,7 @@ func TestManager_Attach(t *testing.T) {
 	t.Run("returns error for out-of-range index", func(t *testing.T) {
 		m := NewManager([]Entry{
 			{Name: "web", Command: "cmd1"},
-		}, io.Discard)
+		}, io.Discard, nil)
 
 		_, err := m.Attach(5)
 		if err == nil {
@@ -94,7 +94,7 @@ func TestManager_Attach(t *testing.T) {
 func TestManager_Detach(t *testing.T) {
 	m := NewManager([]Entry{
 		{Name: "web", Command: "cmd1"},
-	}, io.Discard)
+	}, io.Discard, nil)
 
 	m.Attach(0)
 	p := m.Detach()
@@ -110,7 +110,7 @@ func TestManager_Detach(t *testing.T) {
 
 func TestManager_ResizeAll(t *testing.T) {
 	var buf syncBuffer
-	m := NewManager([]Entry{{Name: "web", Command: "sleep 60"}}, &buf)
+	m := NewManager([]Entry{{Name: "web", Command: "sleep 60"}}, &buf, nil)
 
 	if err := m.StartAll(); err != nil {
 		t.Fatalf("StartAll failed: %v", err)
@@ -135,7 +135,7 @@ func TestManager_Shutdown(t *testing.T) {
 		m := NewManager([]Entry{
 			{Name: "web", Command: "echo ready; trap 'exit 0' INT; sleep 60"},
 			{Name: "worker", Command: "echo ready; trap 'exit 0' INT; sleep 60"},
-		}, &buf)
+		}, &buf, nil)
 
 		if err := m.StartAll(); err != nil {
 			t.Fatalf("StartAll failed: %v", err)
@@ -162,7 +162,7 @@ func TestManager_Shutdown(t *testing.T) {
 func TestManager_StartAll(t *testing.T) {
 	t.Run("monitors process output", func(t *testing.T) {
 		var buf syncBuffer
-		m := NewManager([]Entry{{Name: "web", Command: "echo hello"}}, &buf)
+		m := NewManager([]Entry{{Name: "web", Command: "echo hello"}}, &buf, nil)
 
 		if err := m.StartAll(); err != nil {
 			t.Fatalf("StartAll failed: %v", err)
@@ -180,7 +180,7 @@ func TestManager_StartAll(t *testing.T) {
 		m := NewManager([]Entry{
 			{Name: "web", Command: "echo ready; sleep 60"},
 			{Name: "worker", Command: "echo ready; exit 1"},
-		}, &buf)
+		}, &buf, nil)
 
 		if err := m.StartAll(); err != nil {
 			t.Fatalf("StartAll failed: %v", err)
@@ -201,7 +201,7 @@ func TestManager_StartAll(t *testing.T) {
 		m := NewManager([]Entry{
 			{Name: "web", Command: "echo ready; sleep 60"},
 			{Name: "worker", Command: "echo ready; exit 0"},
-		}, &buf)
+		}, &buf, nil)
 
 		if err := m.StartAll(); err != nil {
 			t.Fatalf("StartAll failed: %v", err)
@@ -220,7 +220,7 @@ func TestManager_StartAll(t *testing.T) {
 func TestManager_WriteToAttached(t *testing.T) {
 	t.Run("forwards bytes to attached process", func(t *testing.T) {
 		r, w, _ := os.Pipe()
-		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard)
+		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard, nil)
 		m.processes[0].pty = w
 		m.Attach(0)
 
@@ -236,7 +236,7 @@ func TestManager_WriteToAttached(t *testing.T) {
 	})
 
 	t.Run("no-op when no process is attached", func(t *testing.T) {
-		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard)
+		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard, nil)
 
 		n, err := m.WriteToAttached([]byte("hello"))
 
