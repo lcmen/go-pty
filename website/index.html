@@ -88,6 +88,16 @@
         <span class="text-gray-500"># Run</span>
         <br />
         go-pty -f Procfile
+        <br />
+        <br />
+        <span class="text-gray-500"># Run subset of processes</span>
+        <br />
+        go-pty -f Procfile -s web,worker
+        <br />
+        <br />
+        <span class="text-gray-500"># Load env vars from .env file</span>
+        <br />
+        go-pty -f Procfile -e .env
       </code>
 
       <h2 class="text-xl font-semibold mb-4">Keyboard shortcuts</h2>
@@ -102,8 +112,12 @@
         </thead>
 
         <tbody class="text-gray-300">
+          <tr class="border-b border-gray-800 bg-gray-900/50">
+            <td class="py-2 font-medium text-gray-200" colspan="3">Normal mode</td>
+          </tr>
+
           <tr class="border-b border-gray-900">
-            <td class="py-2">Normal</td>
+            <td class="py-2"></td>
 
             <td class="py-2">
               <kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">
@@ -115,7 +129,7 @@
           </tr>
 
           <tr class="border-b border-gray-900">
-            <td class="py-2">Normal</td>
+            <td class="py-2"></td>
 
             <td class="py-2">
               <kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">
@@ -127,7 +141,23 @@
           </tr>
 
           <tr class="border-b border-gray-900">
-            <td class="py-2">Dialog</td>
+            <td class="py-2"></td>
+
+            <td class="py-2">
+              <kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">
+                ctrl+r
+              </kbd>
+            </td>
+
+            <td class="py-2">Restart all processes</td>
+          </tr>
+
+          <tr class="border-b border-gray-800 bg-gray-900/50">
+            <td class="py-2 font-medium text-gray-200" colspan="3">Dialog mode</td>
+          </tr>
+
+          <tr class="border-b border-gray-900">
+            <td class="py-2"></td>
 
             <td class="py-2">
               <kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">
@@ -139,7 +169,7 @@
           </tr>
 
           <tr class="border-b border-gray-900">
-            <td class="py-2">Dialog</td>
+            <td class="py-2"></td>
 
             <td class="py-2">
               <kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">Enter</kbd>
@@ -149,7 +179,7 @@
           </tr>
 
           <tr class="border-b border-gray-900">
-            <td class="py-2">Dialog</td>
+            <td class="py-2"></td>
 
             <td class="py-2">
               <kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">Esc</kbd>
@@ -158,8 +188,12 @@
             <td class="py-2">Cancel</td>
           </tr>
 
+          <tr class="border-b border-gray-800 bg-gray-900/50">
+            <td class="py-2 font-medium text-gray-200" colspan="3">Attached mode</td>
+          </tr>
+
           <tr>
-            <td class="py-2">Attached</td>
+            <td class="py-2"></td>
 
             <td class="py-2">
               <kbd class="bg-gray-800 px-1.5 py-0.5 rounded text-xs">
