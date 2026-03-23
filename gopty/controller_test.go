@@ -13,7 +13,7 @@ import (
 
 func TestController_Run(t *testing.T) {
 	stubManager := func() *Manager {
-		return NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard, nil)
+		return NewManager([]Entry{{Name: "web", Command: "sleep 60"}}, io.Discard, nil)
 	}
 
 	stubKeypresses := func(keys ...byte) io.Reader {
@@ -54,6 +54,28 @@ func TestController_Run(t *testing.T) {
 		}
 		if c.mode != OutputAll {
 			t.Error("expected controller to be in all-out mode after detach")
+		}
+	})
+
+	t.Run("ctrl+r restarts all processes", func(t *testing.T) {
+		var out bytes.Buffer
+		m := NewManager([]Entry{{Name: "web", Command: "sleep 60"}}, io.Discard, nil)
+		if err := m.StartAll(); err != nil {
+			t.Fatalf("StartAll failed: %v", err)
+		}
+		oldPID := m.processes[0].cmd.Process.Pid
+
+		c := NewController(m, stubKeypresses(byteCtrlR, byteCtrlC), &out)
+		go c.Run()
+		c.Wait()
+
+		output := out.String()
+		if !strings.Contains(output, "Restarting all processes") {
+			t.Errorf("expected restart message, got: %s", output)
+		}
+		newPID := c.manager().processes[0].cmd.Process.Pid
+		if newPID == oldPID {
+			t.Errorf("expected new PID after restart, got same PID %d", oldPID)
 		}
 	})
 
