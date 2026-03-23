@@ -217,6 +217,34 @@ func TestManager_StartAll(t *testing.T) {
 	})
 }
 
+func TestManager_Restart(t *testing.T) {
+	var buf syncBuffer
+	m := NewManager([]Entry{
+		{Name: "web", Command: "echo ready; sleep 60"},
+		{Name: "worker", Command: "echo ready; sleep 60"},
+	}, &buf, nil)
+
+	if err := m.StartAll(); err != nil {
+		t.Fatalf("StartAll failed: %v", err)
+	}
+	waitFor(t, func() bool { return strings.Count(buf.String(), "ready") >= 2 })
+
+	oldPIDs := []int{m.processes[0].cmd.Process.Pid, m.processes[1].cmd.Process.Pid}
+
+	newManager, err := m.Restart()
+	if err != nil {
+		t.Fatalf("Restart failed: %v", err)
+	}
+	defer newManager.Shutdown()
+
+	waitFor(t, func() bool { return strings.Count(buf.String(), "ready") >= 4 })
+
+	newPIDs := []int{newManager.processes[0].cmd.Process.Pid, newManager.processes[1].cmd.Process.Pid}
+	if diff := cmp.Diff(oldPIDs, newPIDs); diff == "" {
+		t.Errorf("expected PIDs to change after restart, got same PIDs %v", oldPIDs)
+	}
+}
+
 func TestManager_WriteToAttached(t *testing.T) {
 	t.Run("forwards bytes to attached process", func(t *testing.T) {
 		r, w, _ := os.Pipe()

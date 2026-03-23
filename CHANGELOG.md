@@ -4,6 +4,8 @@ All notable changes to test improvements will be documented in this file.
 
 ## Unreleased
 
+Add `ctrl-r` in output all mode to restart all processes.
+
 Add `-e` flag to load environment variables from a `.env` file with `${VAR}` expansion.
 
 Add `-s` flag to run a subset of processes from the Procfile (e.g. `go-pty -s web,worker`).
