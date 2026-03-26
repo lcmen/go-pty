@@ -2,7 +2,7 @@
 
 All notable changes to test improvements will be documented in this file.
 
-## Unreleased
+## 0.2.0
 
 Add `ctrl-r` in output all mode to restart all processes.
 
