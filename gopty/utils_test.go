@@ -132,29 +132,57 @@ func TestParseProcfile(t *testing.T) {
 	}
 
 	t.Run("parses entries skipping comments, blanks, and handles colons in commands", func(t *testing.T) {
-		path := writeProcfile(t, "# comment\nweb: bundle exec rails server\n\napi: http://localhost:3000\n")
-		entries, err := ParseProcfile(path)
+		path := writeProcfile(t, "# comment\n_: bundle exec rails db:prepare\nweb: bundle exec rails server\n\napi: http://localhost:3000\n")
+		preflights, services, err := ParseProcfile(path)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		expected := []Entry{
+		expectedPreflights := []Entry{
+			{Name: "_", Command: "bundle exec rails db:prepare"},
+		}
+		if diff := cmp.Diff(expectedPreflights, preflights); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+
+		expectedServices := []Entry{
 			{Name: "web", Command: "bundle exec rails server"},
 			{Name: "api", Command: "http://localhost:3000"},
 		}
-		if diff := cmp.Diff(expected, entries); diff != "" {
+		if diff := cmp.Diff(expectedServices, services); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+	})
+
+	t.Run("sorts preflights by name", func(t *testing.T) {
+		path := writeProcfile(t, "_z: echo z\n_a: echo a\n_: echo root\nweb: echo web\n")
+		preflights, services, err := ParseProcfile(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		expectedPreflights := []Entry{
+			{Name: "_", Command: "echo root"},
+			{Name: "_a", Command: "echo a"},
+			{Name: "_z", Command: "echo z"},
+		}
+		if diff := cmp.Diff(expectedPreflights, preflights); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+		expectedServices := []Entry{{Name: "web", Command: "echo web"}}
+		if diff := cmp.Diff(expectedServices, services); diff != "" {
 			t.Errorf("mismatch (-expected +got):\n%s", diff)
 		}
 	})
 
 	t.Run("errors on invalid file", func(t *testing.T) {
-		if _, err := ParseProcfile("/nonexistent/path/Procfile"); err == nil {
+		if _, _, err := ParseProcfile("/nonexistent/path/Procfile"); err == nil {
 			t.Error("expected error for missing file")
 		}
-		if _, err := ParseProcfile(writeProcfile(t, "")); err == nil {
+		if _, _, err := ParseProcfile(writeProcfile(t, "")); err == nil {
 			t.Error("expected error for empty procfile")
 		}
-		if _, err := ParseProcfile(writeProcfile(t, "web echo hello\n")); err == nil {
+		if _, _, err := ParseProcfile(writeProcfile(t, "web echo hello\n")); err == nil {
 			t.Error("expected error for missing colon separator")
 		}
 	})

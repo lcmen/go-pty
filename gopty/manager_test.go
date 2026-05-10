@@ -39,7 +39,7 @@ func (sb *syncBuffer) ReadFrom(r io.Reader) (int64, error) {
 }
 
 func TestNewManager(t *testing.T) {
-	m := NewManager([]Entry{
+	m := NewManager(nil, []Entry{
 		{Name: "web", Command: "echo hello"},
 		{Name: "worker", Command: "echo world"},
 	}, io.Discard, nil)
@@ -56,7 +56,7 @@ func TestNewManager(t *testing.T) {
 
 func TestManager_Attach(t *testing.T) {
 	t.Run("attaches process at valid index", func(t *testing.T) {
-		m := NewManager([]Entry{
+		m := NewManager(nil, []Entry{
 			{Name: "web", Command: "cmd1"},
 		}, io.Discard, nil)
 
@@ -75,7 +75,7 @@ func TestManager_Attach(t *testing.T) {
 	})
 
 	t.Run("returns error for out-of-range index", func(t *testing.T) {
-		m := NewManager([]Entry{
+		m := NewManager(nil, []Entry{
 			{Name: "web", Command: "cmd1"},
 		}, io.Discard, nil)
 
@@ -92,7 +92,7 @@ func TestManager_Attach(t *testing.T) {
 }
 
 func TestManager_Detach(t *testing.T) {
-	m := NewManager([]Entry{
+	m := NewManager(nil, []Entry{
 		{Name: "web", Command: "cmd1"},
 	}, io.Discard, nil)
 
@@ -110,7 +110,7 @@ func TestManager_Detach(t *testing.T) {
 
 func TestManager_ResizeAll(t *testing.T) {
 	var buf syncBuffer
-	m := NewManager([]Entry{{Name: "web", Command: "sleep 60"}}, &buf, nil)
+	m := NewManager(nil, []Entry{{Name: "web", Command: "sleep 60"}}, &buf, nil)
 
 	if err := m.StartAll(); err != nil {
 		t.Fatalf("StartAll failed: %v", err)
@@ -132,7 +132,7 @@ func TestManager_ResizeAll(t *testing.T) {
 func TestManager_Shutdown(t *testing.T) {
 	t.Run("shuts down all processes", func(t *testing.T) {
 		var buf syncBuffer
-		m := NewManager([]Entry{
+		m := NewManager(nil, []Entry{
 			{Name: "web", Command: "echo ready; trap 'exit 0' INT; sleep 60"},
 			{Name: "worker", Command: "echo ready; trap 'exit 0' INT; sleep 60"},
 		}, &buf, nil)
@@ -160,9 +160,59 @@ func TestManager_Shutdown(t *testing.T) {
 }
 
 func TestManager_StartAll(t *testing.T) {
+	t.Run("runs preflights before services", func(t *testing.T) {
+		var buf syncBuffer
+		m := NewManager([]Entry{
+			{Name: "_b", Command: "echo preflight-b"},
+			{Name: "_a", Command: "echo preflight-a"},
+		}, []Entry{
+			{Name: "web", Command: "echo service"},
+		}, &buf, nil)
+
+		if err := m.StartAll(); err != nil {
+			t.Fatalf("StartAll failed: %v", err)
+		}
+		m.WaitAll()
+
+		output := buf.String()
+		firstServiceIdx := strings.Index(output, "service")
+		if firstServiceIdx == -1 {
+			t.Fatalf("expected service output, got %q", output)
+		}
+		preflightAIdx := strings.Index(output, "preflight-a")
+		preflightBIdx := strings.Index(output, "preflight-b")
+		if preflightAIdx == -1 || preflightBIdx == -1 {
+			t.Fatalf("expected preflight output, got %q", output)
+		}
+		if preflightAIdx > firstServiceIdx || preflightBIdx > firstServiceIdx {
+			t.Errorf("expected preflights before service output, got %q", output)
+		}
+	})
+
+	t.Run("fails startup when preflight fails", func(t *testing.T) {
+		var buf syncBuffer
+		m := NewManager([]Entry{
+			{Name: "_db", Command: "echo bad-preflight; exit 1"},
+		}, []Entry{
+			{Name: "web", Command: "echo service"},
+		}, &buf, nil)
+
+		err := m.StartAll()
+		if err == nil {
+			t.Fatal("expected StartAll error")
+		}
+		if !strings.Contains(err.Error(), "preflight _db failed") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if strings.Contains(buf.String(), "service") {
+			t.Fatalf("service should not have started, got %q", buf.String())
+		}
+	})
+
 	t.Run("monitors process output", func(t *testing.T) {
 		var buf syncBuffer
-		m := NewManager([]Entry{{Name: "web", Command: "echo hello"}}, &buf, nil)
+		m := NewManager(nil, []Entry{{Name: "web", Command: "echo hello"}}, &buf, nil)
 
 		if err := m.StartAll(); err != nil {
 			t.Fatalf("StartAll failed: %v", err)
@@ -177,7 +227,7 @@ func TestManager_StartAll(t *testing.T) {
 
 	t.Run("shuts down all processes when one crashes", func(t *testing.T) {
 		var buf syncBuffer
-		m := NewManager([]Entry{
+		m := NewManager(nil, []Entry{
 			{Name: "web", Command: "echo ready; sleep 60"},
 			{Name: "worker", Command: "echo ready; exit 1"},
 		}, &buf, nil)
@@ -198,7 +248,7 @@ func TestManager_StartAll(t *testing.T) {
 
 	t.Run("does not shut down when process exits cleanly", func(t *testing.T) {
 		var buf syncBuffer
-		m := NewManager([]Entry{
+		m := NewManager(nil, []Entry{
 			{Name: "web", Command: "echo ready; sleep 60"},
 			{Name: "worker", Command: "echo ready; exit 0"},
 		}, &buf, nil)
@@ -220,6 +270,8 @@ func TestManager_StartAll(t *testing.T) {
 func TestManager_Restart(t *testing.T) {
 	var buf syncBuffer
 	m := NewManager([]Entry{
+		{Name: "_db", Command: "echo preflight"},
+	}, []Entry{
 		{Name: "web", Command: "echo ready; sleep 60"},
 		{Name: "worker", Command: "echo ready; sleep 60"},
 	}, &buf, nil)
@@ -243,12 +295,15 @@ func TestManager_Restart(t *testing.T) {
 	if diff := cmp.Diff(oldPIDs, newPIDs); diff == "" {
 		t.Errorf("expected PIDs to change after restart, got same PIDs %v", oldPIDs)
 	}
+	if strings.Count(buf.String(), "preflight") != 2 {
+		t.Errorf("expected preflight to run twice, got output %q", buf.String())
+	}
 }
 
 func TestManager_WriteToAttached(t *testing.T) {
 	t.Run("forwards bytes to attached process", func(t *testing.T) {
 		r, w, _ := os.Pipe()
-		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard, nil)
+		m := NewManager(nil, []Entry{{Name: "web", Command: "cmd"}}, io.Discard, nil)
 		m.processes[0].pty = w
 		m.Attach(0)
 
@@ -264,7 +319,7 @@ func TestManager_WriteToAttached(t *testing.T) {
 	})
 
 	t.Run("no-op when no process is attached", func(t *testing.T) {
-		m := NewManager([]Entry{{Name: "web", Command: "cmd"}}, io.Discard, nil)
+		m := NewManager(nil, []Entry{{Name: "web", Command: "cmd"}}, io.Discard, nil)
 
 		n, err := m.WriteToAttached([]byte("hello"))
 

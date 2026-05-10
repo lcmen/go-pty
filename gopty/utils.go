@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -95,18 +96,29 @@ func ParseEnvFile(path string) ([]Env, error) {
 	return ExpandAll(envs), nil
 }
 
-func ParseProcfile(path string) ([]Entry, error) {
-	var entries []Entry
+func ParseProcfile(path string) ([]Entry, []Entry, error) {
+	var preflights []Entry
+	var services []Entry
 	err := readFile(path, ":", func(key, value string) {
-		entries = append(entries, Entry{
+		entry := Entry{
 			Name:    strings.TrimSpace(key),
 			Command: strings.TrimSpace(value),
-		})
+		}
+		if strings.HasPrefix(entry.Name, "_") {
+			preflights = append(preflights, entry)
+		} else {
+			services = append(services, entry)
+		}
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return entries, nil
+
+	sort.Slice(preflights, func(i, j int) bool {
+		return preflights[i].Name < preflights[j].Name
+	})
+
+	return preflights, services, nil
 }
 
 func readByte(r io.Reader) (byte, error) {

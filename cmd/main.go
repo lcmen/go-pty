@@ -40,7 +40,7 @@ func main() {
 		fmt.Printf("Starting all process(es):\n\n")
 	}
 
-	entries, err := parseEntries(*procfilePath, *serviceFilter)
+	preflights, services, err := parseEntries(*procfilePath, *serviceFilter)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -52,7 +52,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	m, err := initManager(entries, os.Stdout, envs)
+	m, err := initManager(preflights, services, os.Stdout, envs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -72,21 +72,31 @@ func main() {
 	c.Wait()
 }
 
-func parseEntries(path, filter string) ([]gopty.Entry, error) {
-	entries, err := gopty.ParseProcfile(path)
+func parseEntries(path, filter string) ([]gopty.Entry, []gopty.Entry, error) {
+	preflights, services, err := gopty.ParseProcfile(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if filter == "" {
-		return entries, nil
+		if len(services) == 0 {
+			return nil, nil, fmt.Errorf("no services defined in Procfile")
+		}
+		return preflights, services, nil
 	}
 
 	names := strings.Split(filter, ",")
 	for i, n := range names {
 		names[i] = strings.TrimSpace(n)
 	}
-	return gopty.FilterEntries(entries, names)
+	filtered, err := gopty.FilterEntries(services, names)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(filtered) == 0 {
+		return nil, nil, fmt.Errorf("no services selected")
+	}
+	return preflights, filtered, nil
 }
 
 func parseEnvs(envFile string) ([]gopty.Env, error) {
@@ -96,8 +106,8 @@ func parseEnvs(envFile string) ([]gopty.Env, error) {
 	return gopty.ParseEnvFile(envFile)
 }
 
-func initManager(entries []gopty.Entry, stdout io.Writer, envs []gopty.Env) (*gopty.Manager, error) {
-	m := gopty.NewManager(entries, stdout, envs)
+func initManager(preflights, services []gopty.Entry, stdout io.Writer, envs []gopty.Env) (*gopty.Manager, error) {
+	m := gopty.NewManager(preflights, services, stdout, envs)
 	if err := m.StartAll(); err != nil {
 		return nil, err
 	}

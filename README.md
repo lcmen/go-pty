@@ -22,10 +22,20 @@ go-pty -e .env          # load environment variables from file
 ### Procfile format
 
 ```
+_: bin/rails assets:precompile
+_db: bin/rails db:migrate
 web: bundle exec rails server -p 3000
 worker: bundle exec sidekiq
 css: tailwindcss --watch
 ```
+
+Entries whose name starts with `_` are treated as preflight commands.
+
+- They run sequentially in alphabetical order.
+- Every preflight command must exit with code `0`.
+- If any preflight fails, go-pty exits and services are not started.
+- Preflights always run, even when using `-s` to select services.
+- Preflights are rerun on `ctrl+r` restarts.
 
 ### Environment file format
 

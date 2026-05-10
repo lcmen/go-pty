@@ -38,13 +38,7 @@ func NewProcess(entry Entry, index int, env []Env) *Process {
 
 func (p *Process) Start() error {
 	cmd := exec.Command("sh", "-c", p.Entry.Command)
-
-	if p.env != nil {
-		cmd.Env = os.Environ()
-		for _, e := range p.env {
-			cmd.Env = append(cmd.Env, e.Environ())
-		}
-	}
+	cmd.Env = commandEnv(p.env)
 
 	master, err := pty.Start(cmd)
 	if err != nil {
@@ -55,6 +49,18 @@ func (p *Process) Start() error {
 	p.pty = master
 
 	return nil
+}
+
+func commandEnv(env []Env) []string {
+	if env == nil {
+		return nil
+	}
+
+	environ := os.Environ()
+	for _, e := range env {
+		environ = append(environ, e.Environ())
+	}
+	return environ
 }
 
 func (p *Process) Stream(stdout io.Writer) error {
