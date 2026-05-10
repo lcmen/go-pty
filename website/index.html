@@ -117,7 +117,7 @@
                 worker: bundle exec sidekiq
             </code>
 
-            <p class="text-gray-400 italic text-sm mb-4">
+            <p class="text-gray-400 text-sm mb-4">
                 Entries prefixed with
                 <code
                     class="bg-gray-800 px-1.5 py-0.5 rounded text-xs text-gray-300"
@@ -130,6 +130,12 @@
                     >-s</code
                 >
                 filters, and run again on restart.
+            </p>
+
+            <p class="text-gray-500 italic text-sm mb-8">
+                Keep preflights short-lived. They are meant for setup checks and
+                one-off preparation, not long-running watchers or interactive
+                commands.
             </p>
 
             <h2 class="text-xl font-semibold mb-4">Keyboard shortcuts</h2>

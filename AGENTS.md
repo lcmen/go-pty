@@ -17,7 +17,8 @@ Guidelines and reference for AI agents working on the go-pty project.
 | File | Responsibility |
 |------|---------------|
 | `cmd/main.go` | Entry point, CLI flags, signal handling, raw terminal mode |
-| `gopty/manager.go` | Manages multiple processes, handles attach/detach logic |
+| `gopty/manager.go` | Manages preflight commands and service processes, handles attach/detach logic |
+| `gopty/command.go` | One-off preflight command execution before services start |
 | `gopty/controller.go` | Handles keyboard input, mode switching, dialog invocation |
 | `gopty/process.go` | Individual PTY process lifecycle, output streaming |
 | `gopty/dialog.go` | Interactive process selection UI using alternate screen |
@@ -26,9 +27,9 @@ Guidelines and reference for AI agents working on the go-pty project.
 ### Data Flow
 
 ```
-User Input → Controller → Manager → Process (PTY Master) → Child Process (PTY Slave)
-                                           ↓
-                                    Output Stream → Stdout (with prefixes)
+Procfile → Preflight Command(s) → Manager → Process (PTY Master) → Child Process (PTY Slave)
+                                      ↑              ↓
+User Input → Controller ──────────────┘       Output Stream → Stdout (with prefixes)
 ```
 
 ### Output Modes
@@ -38,6 +39,31 @@ Processes operate in three modes controlled via `atomic.Value`:
 - `OutputAll` - Prefix each line and display to stdout
 - `OutputAttached` - Forward raw bytes directly to stdout (bypass prefixing)
 - `OutputIgnored` - Read and discard output (prevents blocking)
+
+### Preflight Commands
+
+Procfile entries whose names start with `_` are parsed as preflight commands instead of services:
+
+- `_` and `_anything` are valid preflight names
+- Preflights are sorted alphabetically by name
+- Preflights run sequentially before service processes start
+- If a preflight command returns an error, startup stops and no services are started
+- Preflights always run, even when services are filtered with `-s`
+- `ctrl+r` restarts rerun preflights before services
+
+Preflight commands use `Command`; long-running services use `Process`.
+
+Current tradeoff: preflights are deliberately simple one-off `exec.Cmd` runs, not
+PTY-managed processes. They do not participate in the same process-group shutdown
+model as services. On initial startup this is acceptable because the terminal is not
+in raw mode yet and OS signals can still interrupt the program normally. On `ctrl+r`
+restarts, however, preflights run synchronously inside the controller path while the
+terminal is already in raw mode. If a preflight hangs at that point, typed `ctrl+c`
+is just input waiting to be read by go-pty rather than a terminal-generated interrupt
+for the preflight, so the UI can remain blocked until the command exits or is killed
+externally. Keep preflights short-lived; implementing cancellable restart-time
+preflights would require making `Command` own the active process and integrating it
+with `Manager.Shutdown()`.
 
 ## Key Concepts
 
@@ -150,7 +176,7 @@ func stubProcessWithCommand(t *testing.T, command string) *Process
 ```go
 t.Run("description", func(t *testing.T) {
     var buf syncBuffer
-    m := NewManager(entries, &buf)
+    m := NewManager(nil, entries, &buf, nil)
     
     if err := m.StartAll(); err != nil {
         t.Fatalf("StartAll failed: %v", err)
@@ -175,6 +201,8 @@ t.Run("description", func(t *testing.T) {
 
 ```
 # Comment
+_: bin/rails assets:precompile
+_db: bin/rails db:migrate
 web: bundle exec rails server -p 3000
 worker: bundle exec sidekiq
 css: tailwindcss --watch
@@ -183,6 +211,7 @@ css: tailwindcss --watch
 - Format: `name: command`
 - Empty lines and `#` comments are ignored
 - Commands can include shell syntax (env vars, `&&`, etc.) via `sh -c` wrapper
+- Entries whose names start with `_` are preflight commands, not attachable services
 
 ## Keyboard Shortcuts
 

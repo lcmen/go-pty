@@ -37,6 +37,10 @@ Entries whose name starts with `_` are treated as preflight commands.
 - Preflights always run, even when using `-s` to select services.
 - Preflights are rerun on `ctrl+r` restarts.
 
+Keep preflights short-lived. They are intended for setup checks and one-off preparation,
+not long-running watchers or interactive commands. During a `ctrl+r` restart, go-pty
+waits for preflights to finish before services are started again.
+
 ### Environment file format
 
 ```
