@@ -16,12 +16,12 @@ type Manager struct {
 	preflights  []Entry
 	services    []Entry
 	stdout      io.Writer
-	env         []Env
+	env         []string
 	terminating sync.Once
 	wg          sync.WaitGroup
 }
 
-func NewManager(preflights, services []Entry, stdout io.Writer, env []Env) *Manager {
+func NewManager(preflights, services []Entry, stdout io.Writer, env []string) *Manager {
 	m := &Manager{
 		stdout:     stdout,
 		preflights: preflights,

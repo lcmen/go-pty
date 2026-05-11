@@ -2,6 +2,7 @@ package gopty
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 )
@@ -75,7 +76,7 @@ func TestCommand_Run(t *testing.T) {
 		var buf bytes.Buffer
 		c := NewCommand(
 			Entry{Name: "_env", Command: "echo $FOO"},
-			[]Env{{Key: "FOO", Value: "bar"}},
+			append(os.Environ(), "FOO=bar"),
 		)
 
 		if err := c.Run(&buf); err != nil {

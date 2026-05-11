@@ -99,14 +99,14 @@ func parseEntries(path, filter string) ([]gopty.Entry, []gopty.Entry, error) {
 	return preflights, filtered, nil
 }
 
-func parseEnvs(envFile string) ([]gopty.Env, error) {
+func parseEnvs(envFile string) ([]string, error) {
 	if envFile == "" {
-		return nil, nil
+		return os.Environ(), nil
 	}
 	return gopty.ParseEnvFile(envFile)
 }
 
-func initManager(preflights, services []gopty.Entry, stdout io.Writer, envs []gopty.Env) (*gopty.Manager, error) {
+func initManager(preflights, services []gopty.Entry, stdout io.Writer, envs []string) (*gopty.Manager, error) {
 	m := gopty.NewManager(preflights, services, stdout, envs)
 	if err := m.StartAll(); err != nil {
 		return nil, err

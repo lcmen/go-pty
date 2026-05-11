@@ -10,10 +10,10 @@ import (
 
 type Command struct {
 	Entry
-	env []Env
+	env []string
 }
 
-func NewCommand(entry Entry, env []Env) *Command {
+func NewCommand(entry Entry, env []string) *Command {
 	return &Command{
 		Entry: entry,
 		env:   env,
@@ -22,7 +22,7 @@ func NewCommand(entry Entry, env []Env) *Command {
 
 func (c *Command) Run(stdout io.Writer) error {
 	cmd := exec.Command("sh", "-c", c.Command)
-	cmd.Env = commandEnv(c.env)
+	cmd.Env = c.env
 
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {

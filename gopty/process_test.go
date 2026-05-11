@@ -50,7 +50,7 @@ func TestProcess_Start(t *testing.T) {
 	})
 
 	t.Run("sets env vars on process", func(t *testing.T) {
-		env := []Env{{Key: "FOO", Value: "bar"}}
+		env := append(os.Environ(), "FOO=bar")
 		p := NewProcess(Entry{Name: "web", Command: "echo $FOO"}, 0, env)
 
 		if err := p.Start(); err != nil {

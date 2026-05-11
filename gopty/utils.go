@@ -85,15 +85,19 @@ func FilterEntries(entries []Entry, names []string) ([]Entry, error) {
 	return result, nil
 }
 
-func ParseEnvFile(path string) ([]Env, error) {
-	var envs []Env
+func ParseEnvFile(path string) ([]string, error) {
+	var envs []string
+	expanded := make(map[string]string)
 	err := readFile(path, "=", func(key, value string) {
-		envs = append(envs, NewEnv(key, value))
+		key = strings.TrimSpace(key)
+		value = expandEnvValue(strings.TrimSpace(value), expanded)
+		expanded[key] = value
+		envs = append(envs, key+"="+value)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return ExpandAll(envs), nil
+	return append(os.Environ(), envs...), nil
 }
 
 func ParseProcfile(path string) ([]Entry, []Entry, error) {
@@ -119,6 +123,16 @@ func ParseProcfile(path string) ([]Entry, []Entry, error) {
 	})
 
 	return preflights, services, nil
+}
+
+func expandEnvValue(value string, expanded map[string]string) string {
+	return os.Expand(value, func(name string) string {
+		replacement, ok := expanded[name]
+		if !ok {
+			replacement = os.Getenv(name)
+		}
+		return replacement
+	})
 }
 
 func readByte(r io.Reader) (byte, error) {
