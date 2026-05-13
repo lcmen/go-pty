@@ -2,11 +2,13 @@
 
 All notable changes to test improvements will be documented in this file.
 
-## Unreleased
+## 0.3.0
 
 Add `Enter` in output all mode to insert a blank line as a visual separator.
 
 Add support for preflight commands to run sequentially before the services start.
+
+Update dependencies.
 
 ## 0.2.0
 
