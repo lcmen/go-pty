@@ -57,6 +57,18 @@ func TestController_Run(t *testing.T) {
 		}
 	})
 
+	t.Run("enter inserts blank line in all-out mode", func(t *testing.T) {
+		var out bytes.Buffer
+		m := stubManager()
+		c := NewController(m, stubKeypresses(byteEnter, byteCtrlC), &out)
+
+		c.Run()
+
+		if !strings.HasPrefix(out.String(), "\r\n") {
+			t.Errorf("expected blank line before shutdown message, got: %q", out.String())
+		}
+	})
+
 	t.Run("ctrl+r restarts all processes", func(t *testing.T) {
 		var out bytes.Buffer
 		m := NewManager(nil, []Entry{{Name: "web", Command: "sleep 60"}}, io.Discard, nil)

@@ -90,6 +90,8 @@ func (c *Controller) handleAllOut() {
 	}
 
 	switch buf {
+	case byteEnter:
+		fmt.Fprint(c.stdout, "\r\n")
 	case byteCtrlBracket:
 		d := NewDialog(c.manager().Processes(), c.stdin, c.stdout)
 		idx, ok := d.Open()
