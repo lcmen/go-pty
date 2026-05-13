@@ -2,6 +2,10 @@
 
 All notable changes to test improvements will be documented in this file.
 
+## Unreleased
+
+Add support for preflight commands to run sequentially before the services start.
+
 ## 0.2.0
 
 Add `ctrl-r` in output all mode to restart all processes.

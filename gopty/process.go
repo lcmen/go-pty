@@ -20,14 +20,14 @@ type Process struct {
 	Entry
 	Color      string
 	cmd        *exec.Cmd
-	env        []Env
+	env        []string
 	mode       atomic.Value
 	pty        *os.File
 	ptyMu      sync.RWMutex
 	terminated chan struct{}
 }
 
-func NewProcess(entry Entry, index int, env []Env) *Process {
+func NewProcess(entry Entry, index int, env []string) *Process {
 	return &Process{
 		Entry:      entry,
 		Color:      ColorPalette[index%len(ColorPalette)],
@@ -38,13 +38,7 @@ func NewProcess(entry Entry, index int, env []Env) *Process {
 
 func (p *Process) Start() error {
 	cmd := exec.Command("sh", "-c", p.Entry.Command)
-
-	if p.env != nil {
-		cmd.Env = os.Environ()
-		for _, e := range p.env {
-			cmd.Env = append(cmd.Env, e.Environ())
-		}
-	}
+	cmd.Env = p.env
 
 	master, err := pty.Start(cmd)
 	if err != nil {

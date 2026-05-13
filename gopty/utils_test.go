@@ -56,6 +56,13 @@ func TestParseEnvFile(t *testing.T) {
 		}
 		return path
 	}
+	parsedEnv := func(envs []string, n int) []string {
+		t.Helper()
+		if len(envs) < n {
+			t.Fatalf("expected at least %d env vars, got %d", n, len(envs))
+		}
+		return envs[len(envs)-n:]
+	}
 
 	t.Run("parses key=value pairs", func(t *testing.T) {
 		path := writeEnvFile(t, "FOO=bar\nBAZ=qux")
@@ -63,11 +70,8 @@ func TestParseEnvFile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		expected := []Env{
-			{Key: "FOO", Value: "bar"},
-			{Key: "BAZ", Value: "qux"},
-		}
-		if diff := cmp.Diff(expected, envs); diff != "" {
+		expected := []string{"FOO=bar", "BAZ=qux"}
+		if diff := cmp.Diff(expected, parsedEnv(envs, 2)); diff != "" {
 			t.Errorf("mismatch (-expected +got):\n%s", diff)
 		}
 	})
@@ -78,11 +82,8 @@ func TestParseEnvFile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		expected := []Env{
-			{Key: "FOO", Value: "bar"},
-			{Key: "BAZ", Value: "qux"},
-		}
-		if diff := cmp.Diff(expected, envs); diff != "" {
+		expected := []string{"FOO=bar", "BAZ=qux"}
+		if diff := cmp.Diff(expected, parsedEnv(envs, 2)); diff != "" {
 			t.Errorf("mismatch (-expected +got):\n%s", diff)
 		}
 	})
@@ -93,23 +94,33 @@ func TestParseEnvFile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		expected := []Env{{Key: "EQ", Value: "http://example.com?a=b&c=d"}}
-		if diff := cmp.Diff(expected, envs); diff != "" {
+		expected := []string{"EQ=http://example.com?a=b&c=d"}
+		if diff := cmp.Diff(expected, parsedEnv(envs, 1)); diff != "" {
 			t.Errorf("mismatch (-expected +got):\n%s", diff)
 		}
 	})
 
-	t.Run("expands env var references", func(t *testing.T) {
-		path := writeEnvFile(t, "BASE=/app\nLOG=${BASE}/logs")
+	t.Run("expands env vars", func(t *testing.T) {
+		path := writeEnvFile(t, "FOO=/usr\nBAR=/bin\nPATH=${FOO}:${BAR}")
 		envs, err := ParseEnvFile(path)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		expected := []Env{
-			{Key: "BASE", Value: "/app"},
-			{Key: "LOG", Value: "/app/logs"},
+		expected := []string{"FOO=/usr", "BAR=/bin", "PATH=/usr:/bin"}
+		if diff := cmp.Diff(expected, parsedEnv(envs, 3)); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
 		}
-		if diff := cmp.Diff(expected, envs); diff != "" {
+	})
+
+	t.Run("expands env vars absed on os environment", func(t *testing.T) {
+		t.Setenv("GO_PTY_TEST_BASE", "/tmp/go-pty")
+		path := writeEnvFile(t, "LOG=${GO_PTY_TEST_BASE}/logs")
+		envs, err := ParseEnvFile(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := []string{"LOG=/tmp/go-pty/logs"}
+		if diff := cmp.Diff(expected, parsedEnv(envs, 1)); diff != "" {
 			t.Errorf("mismatch (-expected +got):\n%s", diff)
 		}
 	})
@@ -132,29 +143,57 @@ func TestParseProcfile(t *testing.T) {
 	}
 
 	t.Run("parses entries skipping comments, blanks, and handles colons in commands", func(t *testing.T) {
-		path := writeProcfile(t, "# comment\nweb: bundle exec rails server\n\napi: http://localhost:3000\n")
-		entries, err := ParseProcfile(path)
+		path := writeProcfile(t, "# comment\n_: bundle exec rails db:prepare\nweb: bundle exec rails server\n\napi: http://localhost:3000\n")
+		preflights, services, err := ParseProcfile(path)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		expected := []Entry{
+		expectedPreflights := []Entry{
+			{Name: "_", Command: "bundle exec rails db:prepare"},
+		}
+		if diff := cmp.Diff(expectedPreflights, preflights); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+
+		expectedServices := []Entry{
 			{Name: "web", Command: "bundle exec rails server"},
 			{Name: "api", Command: "http://localhost:3000"},
 		}
-		if diff := cmp.Diff(expected, entries); diff != "" {
+		if diff := cmp.Diff(expectedServices, services); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+	})
+
+	t.Run("sorts preflights by name", func(t *testing.T) {
+		path := writeProcfile(t, "_z: echo z\n_a: echo a\n_: echo root\nweb: echo web\n")
+		preflights, services, err := ParseProcfile(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		expectedPreflights := []Entry{
+			{Name: "_", Command: "echo root"},
+			{Name: "_a", Command: "echo a"},
+			{Name: "_z", Command: "echo z"},
+		}
+		if diff := cmp.Diff(expectedPreflights, preflights); diff != "" {
+			t.Errorf("mismatch (-expected +got):\n%s", diff)
+		}
+		expectedServices := []Entry{{Name: "web", Command: "echo web"}}
+		if diff := cmp.Diff(expectedServices, services); diff != "" {
 			t.Errorf("mismatch (-expected +got):\n%s", diff)
 		}
 	})
 
 	t.Run("errors on invalid file", func(t *testing.T) {
-		if _, err := ParseProcfile("/nonexistent/path/Procfile"); err == nil {
+		if _, _, err := ParseProcfile("/nonexistent/path/Procfile"); err == nil {
 			t.Error("expected error for missing file")
 		}
-		if _, err := ParseProcfile(writeProcfile(t, "")); err == nil {
+		if _, _, err := ParseProcfile(writeProcfile(t, "")); err == nil {
 			t.Error("expected error for empty procfile")
 		}
-		if _, err := ParseProcfile(writeProcfile(t, "web echo hello\n")); err == nil {
+		if _, _, err := ParseProcfile(writeProcfile(t, "web echo hello\n")); err == nil {
 			t.Error("expected error for missing colon separator")
 		}
 	})

@@ -11,22 +11,29 @@ import (
 )
 
 type Manager struct {
+	commands    []*Command
 	processes   []*Process
-	entries     []Entry
+	preflights  []Entry
+	services    []Entry
 	stdout      io.Writer
-	env         []Env
+	env         []string
 	terminating sync.Once
 	wg          sync.WaitGroup
 }
 
-func NewManager(entries []Entry, stdout io.Writer, env []Env) *Manager {
+func NewManager(preflights, services []Entry, stdout io.Writer, env []string) *Manager {
 	m := &Manager{
-		stdout:  stdout,
-		entries: entries,
-		env:     env,
+		stdout:     stdout,
+		preflights: preflights,
+		services:   services,
+		env:        env,
 	}
 
-	for i, entry := range entries {
+	for _, entry := range preflights {
+		m.commands = append(m.commands, NewCommand(entry, env))
+	}
+
+	for i, entry := range services {
 		p := NewProcess(entry, i, env)
 		p.mode.Store(OutputAll)
 		m.processes = append(m.processes, p)
@@ -36,6 +43,12 @@ func NewManager(entries []Entry, stdout io.Writer, env []Env) *Manager {
 }
 
 func (m *Manager) StartAll() error {
+	for _, c := range m.commands {
+		if err := c.Run(m.stdout); err != nil {
+			return err
+		}
+	}
+
 	for _, p := range m.processes {
 		if err := p.Start(); err != nil {
 			return err
@@ -96,7 +109,7 @@ func (m *Manager) Shutdown() {
 func (m *Manager) Restart() (*Manager, error) {
 	m.Shutdown()
 	m.WaitAll()
-	newManager := NewManager(m.entries, m.stdout, m.env)
+	newManager := NewManager(m.preflights, m.services, m.stdout, m.env)
 	if err := newManager.StartAll(); err != nil {
 		return nil, err
 	}
