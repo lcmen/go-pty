@@ -217,6 +217,7 @@ css: tailwindcss --watch
 
 | Mode | Key | Action |
 |------|-----|--------|
+| Normal | `Enter` | Insert a blank line as a visual separator |
 | Normal | `ctrl+]` | Open process selection dialog |
 | Normal | `ctrl+c` | Shut down all processes and exit |
 | Dialog | `↑/↓` | Navigate process list |
