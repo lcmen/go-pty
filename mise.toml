@@ -1,11 +1,17 @@
 [tools]
+actionlint = "latest"
 go = "latest"
+hk = "latest"
+pkl = "latest"
 
 [env]
 GOBIN = "{{config_root}}/gomod/bin"
 GOCACHE = "{{config_root}}/gomod/cache"
 GOMODCACHE = "{{config_root}}/gomod"
 GOPATH = "{{config_root}}/gomod"
+
+[hooks]
+postinstall = "hk install --mise"
 
 # Build and release tasks
 [tasks.build]
