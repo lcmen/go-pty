@@ -1,0 +1,7 @@
+[tools]
+python = "3"
+ruby = "3"
+
+[env]
+GEM_HOME = "{{config_root}}/gem"
+_.path = ["{{config_root}}/gem/bin"]

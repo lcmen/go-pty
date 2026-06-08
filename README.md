@@ -68,8 +68,8 @@ In **normal mode**, output from all processes is shown with colored prefixes. In
 ## Building
 
 ```bash
-make build
-make test
+mise run build
+mise run test
 ```
 
 ## License

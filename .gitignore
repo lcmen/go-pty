@@ -1,2 +1,3 @@
-.deps
+example/gem
+gomod
 go-pty

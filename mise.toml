@@ -1,0 +1,59 @@
+[tools]
+actionlint = "latest"
+go = "latest"
+hk = "latest"
+pkl = "latest"
+
+[env]
+GOBIN = "{{config_root}}/gomod/bin"
+GOCACHE = "{{config_root}}/gomod/cache"
+GOMODCACHE = "{{config_root}}/gomod"
+GOPATH = "{{config_root}}/gomod"
+
+[hooks]
+postinstall = "hk install --mise"
+
+# Build and release tasks
+[tasks.build]
+description = "Build binary to ./go-pty"
+depends = ["clean"]
+run = "go build -o go-pty ./cmd"
+
+[tasks.clean]
+description = "Remove build artifacts"
+run = "rm -f go-pty"
+
+[tasks.install]
+description = "Build and copy to ~/.local/bin"
+depends = ["build"]
+run = "cp go-pty ~/.local/bin"
+
+[tasks.release-build]
+description = "Build release binary for GOOS/GOARCH"
+run = "go build -o go-pty-${GOOS}-${GOARCH} ./cmd"
+
+[tasks.lint]
+description = "Run go vet and go fmt"
+run = [
+  "go vet ./...",
+  "go fmt ./...",
+]
+
+[tasks.stats]
+description = "Show code statistics"
+run = '''
+echo "Test $(go test -cover ./gopty/ | grep -oE 'coverage: [0-9.]+%')"
+echo ""
+echo "Lines of code (excluding comments and blanks):"
+total=0
+for f in gopty/*.go cmd/main.go; do
+  n=$(grep -cvE '^\s*(//|$)' "$f")
+  total=$((total + n))
+  printf "%8d %s\n" "$n" "$f"
+done
+printf "%8d total\n" "$total"
+'''
+
+[tasks.test]
+description = "Run tests with race detection"
+run = "go test -race ./gopty/"
