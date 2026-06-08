@@ -132,19 +132,19 @@ defer unlock()
 
 ```bash
 # Build
-make build          # Build binary to ./go-pty
+mise run build      # Build binary to ./go-pty
 
 # Test
-make test           # Run tests with race detection
+mise run test       # Run tests with race detection
 
 # Lint
-make lint           # Run go vet and go fmt
+mise run lint       # Run go vet and go fmt
 
 # Stats
-make stats          # Show code statistics
+mise run stats      # Show code statistics
 
 # Install
-make install        # Build and copy to ~/.local/bin
+mise run install    # Build and copy to ~/.local/bin
 ```
 
 ## Testing Guidelines

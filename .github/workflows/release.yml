@@ -18,14 +18,12 @@ jobs:
         goarch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
+      - uses: jdx/mise-action@v3
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build -o go-pty-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd
+        run: mise run release-build
       - uses: actions/upload-artifact@v7
         with:
           name: go-pty-${{ matrix.goos }}-${{ matrix.goarch }}
