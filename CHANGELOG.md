@@ -2,6 +2,10 @@
 
 All notable changes to test improvements will be documented in this file.
 
+## 0.3.1
+
+Update dependencies.
+
 ## 0.3.0
 
 Add `Enter` in output all mode to insert a blank line as a visual separator.
