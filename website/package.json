@@ -11,5 +11,8 @@
     "concurrently": "^10.0.3",
     "serve": "^14.2.4",
     "tailwindcss": "^4.2.1"
+  },
+  "overrides": {
+    "shell-quote": "1.9.0"
   }
 }
