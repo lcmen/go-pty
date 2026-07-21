@@ -1,306 +1,664 @@
 <!doctype html>
-
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>go-pty</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="go-pty runs Procfile processes in real terminals, with an interactive debugging workflow."
+    />
+    <meta property="og:title" content="go-pty — Procfile processes with real terminals" />
+    <meta
+      property="og:description"
+      content="Run Procfile services in real PTYs and attach to any process for interactive debugging."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="go-pty — Procfile processes with real terminals" />
+    <meta
+      name="twitter:description"
+      content="Run Procfile services in real PTYs and attach to any process for interactive debugging."
+    />
+    <title>go-pty — Procfile processes with real terminals</title>
+    <link rel="stylesheet" href="assets/build.css" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  </head>
+  <body
+    class="page-shell"
+    x-data="{ terminalState: 'combined', selectedProcess: 'web' }"
+    @keydown.window="
+      if ($event.ctrlKey && $event.key === ']') {
+        $event.preventDefault();
+        terminalState = terminalState === 'attached' ? 'combined' : terminalState === 'dialog' ? 'combined' : 'dialog';
+      } else if ($event.key === 'Escape' && terminalState === 'dialog') {
+        terminalState = 'combined';
+      } else if (terminalState === 'dialog' && ['ArrowDown', 'ArrowUp'].includes($event.key)) {
+        $event.preventDefault();
+        selectedProcess = selectedProcess === 'web' ? 'worker' : 'web';
+      } else if (terminalState === 'dialog' && $event.key === 'Enter') {
+        terminalState = 'attached';
+      }
+    "
+  >
+    <nav
+      class="navbar border-slate-200/90 bg-white/90 backdrop-blur-md"
+      aria-label="Primary navigation"
+      x-data="{ mobileMenuOpen: false }"
+    >
+      <div class="navbar-inner site-navbar-inner max-sm:min-h-15">
+        <a class="navbar-brand" href="#top" aria-label="go-pty home">
+          <span class="navbar-brand-icon">&gt;_</span>
+          <span>go-pty</span>
+        </a>
 
-        <script src="https://cdn.tailwindcss.com"></script>
-    </head>
+        <div class="flex items-center gap-3 ml-auto mr-4 max-lg:hidden" aria-label="Page sections">
+          <a class="nav-link" href="#features">Features</a>
+          <a class="nav-link" href="#install">Install</a>
+          <a class="nav-link" href="#shortcuts">Shortcuts</a>
+          <a class="nav-link" href="#demo">Demo</a>
+        </div>
 
-    <body class="bg-gray-950 text-gray-100 min-h-screen">
-        <div class="max-w-2xl mx-auto px-6 py-20">
-            <pre class="text-green-400 text-sm mb-6">
+        <div class="navbar-actions">
+          <a
+            class="btn btn-secondary btn-sm max-lg:hidden"
+            href="https://github.com/lcmen/go-pty"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M12 .7A11.3 11.3 0 0 0 8.43 22.72c.57.1.78-.25.78-.55v-2.14c-3.18.7-3.85-1.35-3.85-1.35-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.18 1.75 1.18 1.02 1.75 2.68 1.25 3.34.96.1-.74.4-1.25.73-1.53-2.54-.29-5.21-1.27-5.21-5.65 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.45.11-3.02 0 0 .96-.31 3.11 1.17A10.8 10.8 0 0 1 12 6.18c.96 0 1.91.13 2.81.38 2.16-1.48 3.11-1.17 3.11-1.17.62 1.57.23 2.73.11 3.02.74.8 1.18 1.82 1.18 3.07 0 4.39-2.68 5.35-5.23 5.64.41.36.78 1.06.78 2.14v2.91c0 .3.21.66.79.55A11.3 11.3 0 0 0 12 .7Z"
+              />
+            </svg>
+            GitHub
+          </a>
+          <button
+            class="btn-icon hidden max-lg:inline-grid"
+            @click="mobileMenuOpen = !mobileMenuOpen"
+            :aria-expanded="mobileMenuOpen"
+            :aria-label="mobileMenuOpen ? 'Close navigation' : 'Open navigation'"
+            aria-controls="mobile-menu"
+          >
+            <svg
+              width="19"
+              height="19"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div
+        class="absolute inset-x-0 top-full z-20 hidden bg-white/90 pb-4 backdrop-blur-md"
+        id="mobile-menu"
+        :class="{ 'max-lg:grid': mobileMenuOpen }"
+      >
+        <div class="site-shell grid gap-1">
+          <a class="nav-link max-lg:p-3" href="#features" @click="mobileMenuOpen = false">Features</a>
+          <a class="nav-link max-lg:p-3" href="#install" @click="mobileMenuOpen = false">Install</a>
+          <a class="nav-link max-lg:p-3" href="#shortcuts" @click="mobileMenuOpen = false">Shortcuts</a>
+          <a class="nav-link max-lg:p-3" href="#demo" @click="mobileMenuOpen = false">Demo</a>
+          <a
+            class="nav-link max-lg:p-3"
+            href="https://github.com/lcmen/go-pty"
+            target="_blank"
+            rel="noreferrer"
+            @click="mobileMenuOpen = false"
+            >GitHub</a
+          >
+        </div>
+      </div>
+    </nav>
+
+    <main id="top" class="flex-1">
+      <section class="pt-15 pb-9 lg:pt-20 xl:pt-26">
+        <div class="site-shell grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16 xl:gap-26">
+          <div class="max-w-none text-center lg:max-w-2xl lg:text-left">
+            <h1 class="h1">Procfile processes.<br /><span class="text-blue-600">Real terminals.</span></h1>
+            <p class="text-lead max-w-xl mt-6 mx-auto lg:mx-0">
+              See all process output together, then attach to any service for an interactive debugger or REPL.
+            </p>
+            <div class="flex flex-wrap items-stretch justify-center gap-3 mt-8 lg:items-center lg:justify-start">
+              <a class="btn btn-primary btn-lg w-full sm:w-auto" href="#install">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
+                </svg>
+                Install go-pty
+              </a>
+            </div>
+          </div>
+
+          <div class="terminal-wrapper" aria-label="Interactive terminal demonstration">
+            <div class="terminal">
+              <div class="terminal-bar">
+                <div class="flex gap-1.5" aria-hidden="true">
+                  <span class="size-2.5 rounded-full bg-rose-400"></span>
+                  <span class="size-2.5 rounded-full bg-amber-400"></span>
+                  <span class="size-2.5 rounded-full bg-green-400"></span>
+                </div>
+                <button
+                  class="terminal-button"
+                  @click="terminalState = terminalState === 'attached' || terminalState === 'dialog' ? 'combined' : 'dialog'"
+                >
+                  <kbd>ctrl</kbd><kbd>]</kbd>
+                  <span
+                    x-text="terminalState === 'attached' ? 'Detach' : terminalState === 'dialog' ? 'Cancel' : 'Attach'"
+                  ></span>
+                </button>
+              </div>
+              <div class="relative min-h-75 p-5 text-xs leading-relaxed max-sm:p-4">
+                <div x-show="terminalState === 'combined'">
+                  <pre class="m-0 mb-3 font-mono whitespace-pre">
   __ _  ___        _ __ | |_ _   _
  / _` |/ _ \ _____| '_ \| __| | | |
 | (_| | (_) |_____| |_) | |_| |_| |
  \__, |\___/      | .__/ \__|\__, |
- |___/            |_|        |___/</pre
-            >
+ |___/            |_|        |___/
 
-            <p class="text-lg text-gray-300 mb-4">
-                A process manager that runs commands from a Procfile, each in
-                its own pseudoterminal (PTY). Every process gets a real
-                terminal, so you can attach to any running process and use
-                interactive debuggers and REPLs directly.
-            </p>
+Starting all process(es):</pre
+                  >
+                  <div class="terminal-line">
+                    <span class="text-blue-400">web</span><span class="text-slate-50">Puma starting...</span>
+                  </div>
+                  <div class="terminal-line">
+                    <span class="text-blue-400">web</span
+                    ><span>Listening on <span class="text-green-400">http://127.0.0.1:3000</span></span>
+                  </div>
+                  <div class="terminal-line">
+                    <span class="text-purple-400">worker</span
+                    ><span class="text-slate-50">Sidekiq connected to Redis</span>
+                  </div>
+                  <div class="terminal-line">
+                    <span class="text-slate-500">go-pty</span
+                    ><span class="text-slate-500">Press ctrl+] to attach<span class="terminal-cursor"></span></span>
+                  </div>
+                </div>
 
-            <p class="text-gray-400 text-sm mb-8">
-                Press
-                <kbd
-                    class="bg-gray-800 px-1.5 py-0.5 rounded text-xs text-gray-300"
-                    >ctrl+]</kbd
+                <div x-show="terminalState === 'attached'" x-cloak>
+                  <div class="mb-px text-blue-100">
+                    [go-pty] Attached to <span x-text="selectedProcess"></span> (ctrl+] to detach)
+                  </div>
+                  <div class="terminal-line">
+                    <span
+                      :class="selectedProcess === 'worker' ? 'text-purple-400' : 'text-blue-400'"
+                      x-text="selectedProcess"
+                    ></span
+                    ><span>Processing by PagesController#home</span>
+                  </div>
+                  <div class="terminal-line">
+                    <span
+                      :class="selectedProcess === 'worker' ? 'text-purple-400' : 'text-blue-400'"
+                      x-text="selectedProcess"
+                    ></span
+                    ><span>From: app/controllers/pages_controller.rb:6</span>
+                  </div>
+                  <div class="terminal-line">
+                    <span
+                      :class="selectedProcess === 'worker' ? 'text-purple-400' : 'text-blue-400'"
+                      x-text="selectedProcess"
+                    ></span
+                    ><span class="text-slate-50"
+                      >[1] pry(#&lt;PagesController&gt;)&gt; <span class="terminal-cursor"></span
+                    ></span>
+                  </div>
+                </div>
+
+                <div
+                  class="process-dialog"
+                  :class="{ open: terminalState === 'dialog' }"
+                  :aria-hidden="terminalState !== 'dialog'"
+                  @click.self="terminalState = 'combined'"
                 >
-                to attach to a process for a full interactive terminal session.
-                Press it again to detach and return to the combined output view.
-            </p>
-
-            <div class="flex gap-4 mb-12">
-                <a
-                    href="https://github.com/lcmen/go-pty"
-                    class="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded transition"
-                >
-                    GitHub
-                </a>
-
-                <a
-                    href="https://github.com/lcmen/go-pty/releases"
-                    class="bg-gray-800 hover:bg-gray-700 text-white font-medium px-5 py-2 rounded border border-gray-700 transition"
-                >
-                    Download
-                </a>
+                  <p class="mb-4">Select a process (↑/↓ navigate, Enter select, Esc cancel):</p>
+                  <div class="grid justify-items-start" role="dialog" aria-modal="true" aria-label="Select a process">
+                    <button
+                      class="process-option"
+                      :class="{ active: selectedProcess === 'web' }"
+                      @click="selectedProcess = 'web'; terminalState = 'attached'"
+                    >
+                      <span x-text="`${selectedProcess === 'web' ? '>' : ' '} 1. web`"></span>
+                    </button>
+                    <button
+                      class="process-option"
+                      :class="{ active: selectedProcess === 'worker' }"
+                      @click="selectedProcess = 'worker'; terminalState = 'attached'"
+                    >
+                      <span x-text="`${selectedProcess === 'worker' ? '>' : ' '} 2. worker`"></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
+        </div>
+      </section>
 
-            <h2 class="text-xl font-semibold mb-4">Demo</h2>
+      <section class="section section-alt" id="features">
+        <div class="site-shell">
+          <div class="section-heading">
+            <div class="section-name">Features</div>
+          </div>
 
-            <video
-                class="rounded mb-8 w-full"
+          <div class="grid grid-cols-4 items-stretch gap-4 max-lg:grid-cols-2 max-sm:grid-cols-1">
+            <article class="card feature-card">
+              <div class="card-body">
+                <div class="feature-icon">
+                  <svg
+                    width="21"
+                    height="21"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 6h16M4 12h16M4 18h10" />
+                  </svg>
+                </div>
+                <h3 class="h3">Combined output</h3>
+                <p>Follow all services in one readable, color-prefixed stream instead of juggling terminal windows.</p>
+                <div class="feature-detail">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m5 12 4 4L19 6" />
+                  </svg>
+                  <span>Web, workers, CSS, and more</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="card feature-card">
+              <div class="card-body">
+                <div class="feature-icon">
+                  <svg
+                    width="21"
+                    height="21"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <path d="m5 7 5 5-5 5m7 0h7" />
+                  </svg>
+                </div>
+                <h3 class="h3">Real PTYs</h3>
+                <p>
+                  Each command runs in its own pseudo-terminal, preserving colors, readline, and interactive behavior.
+                </p>
+                <div class="feature-detail">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m5 12 4 4L19 6" />
+                  </svg>
+                  <span>Pry, debuggers, and REPLs work</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="card feature-card">
+              <div class="card-body">
+                <div class="feature-icon">
+                  <svg
+                    width="21"
+                    height="21"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M8 12h8M12 8v8" />
+                    <circle cx="12" cy="12" r="9" />
+                  </svg>
+                </div>
+                <h3 class="h3">Attach on demand</h3>
+                <p>Remain in the combined view, then attach to one process only when you need direct interaction.</p>
+                <div class="feature-detail">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m5 12 4 4L19 6" />
+                  </svg>
+                  <span><code>ctrl+]</code> toggles attachment</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="card feature-card">
+              <div class="card-body">
+                <div class="feature-icon">
+                  <svg
+                    width="21"
+                    height="21"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 4h14v16H5z" />
+                    <path d="m8 9 2 2 4-4M8 15h8" />
+                  </svg>
+                </div>
+                <h3 class="h3">Preflight tasks</h3>
+                <p>
+                  Run short setup or validation commands before services start by prefixing entries with an underscore.
+                </p>
+                <div class="feature-detail">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m5 12 4 4L19 6" />
+                  </svg>
+                  <span>Stop startup when setup fails</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="install">
+        <div class="site-shell">
+          <div class="section-heading">
+            <div class="section-name">Quick start</div>
+          </div>
+
+          <article class="card">
+            <div
+              class="card-body"
+              x-data="{
+                tab: 0,
+                copyState: 'idle',
+                copyTimer: null,
+                currentCode() {
+                  return (this.tab === 0 ? this.$refs.macos : this.tab === 1 ? this.$refs.linux : this.$refs.procfile).innerText.trim();
+                },
+                async copySelectedCode() {
+                  clearTimeout(this.copyTimer);
+
+                  try {
+                    if (!navigator.clipboard) throw new Error('Clipboard API unavailable');
+
+                    await navigator.clipboard.writeText(this.currentCode());
+                    this.copyState = 'copied';
+                  } catch (_error) {
+                    this.copyState = 'failed';
+                  }
+
+                  this.copyTimer = setTimeout(() => (this.copyState = 'idle'), 1700);
+                },
+                copyLabel() {
+                  return this.copyState === 'copied' ? 'Copied' : this.copyState === 'failed' ? 'Copy failed' : 'Copy';
+                },
+              }"
+            >
+              <div class="tab-list" role="tablist" aria-label="Install and configuration">
+                <ul class="tab-list-inner max-sm:gap-4 max-sm:overflow-x-auto">
+                  <li>
+                    <button
+                      class="tab-item border-0 bg-transparent"
+                      id="tab-macos"
+                      type="button"
+                      role="tab"
+                      :aria-selected="tab === 0"
+                      aria-controls="panel-macos"
+                      @click="tab = 0"
+                      :class="tab === 0 && 'tab-item-active'"
+                    >
+                      macOS
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      class="tab-item border-0 bg-transparent"
+                      id="tab-linux"
+                      type="button"
+                      role="tab"
+                      :aria-selected="tab === 1"
+                      aria-controls="panel-linux"
+                      @click="tab = 1"
+                      :class="tab === 1 && 'tab-item-active'"
+                    >
+                      Linux
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      class="tab-item border-0 bg-transparent"
+                      id="tab-procfile"
+                      type="button"
+                      role="tab"
+                      :aria-selected="tab === 2"
+                      aria-controls="panel-procfile"
+                      @click="tab = 2"
+                      :class="tab === 2 && 'tab-item-active'"
+                    >
+                      Procfile
+                    </button>
+                  </li>
+                </ul>
+              </div>
+              <div class="tab-panel relative">
+                <button
+                  class="btn btn-secondary btn-sm copy-button"
+                  aria-label="Copy selected code"
+                  :class="{ copied: copyState === 'copied', failed: copyState === 'failed' }"
+                  @click="copySelectedCode()"
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <rect width="14" height="14" x="8" y="8" rx="2" />
+                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                  </svg>
+                  <span aria-live="polite" x-text="copyLabel()"></span>
+                </button>
+                <pre
+                  class="code-block"
+                  id="panel-macos"
+                  x-ref="macos"
+                  role="tabpanel"
+                  aria-labelledby="tab-macos"
+                  x-show="tab === 0"
+                ><code><span class="text-slate-500"># Install</span>
+<span class="text-slate-50">brew tap lcmen/extra</span>
+<span class="text-slate-50">brew install go-pty</span>
+
+<span class="text-slate-500"># Run</span>
+go-pty -f Procfile</code></pre>
+                <pre
+                  class="code-block"
+                  id="panel-linux"
+                  x-ref="linux"
+                  role="tabpanel"
+                  aria-labelledby="tab-linux"
+                  x-cloak
+                  x-show="tab === 1"
+                ><code><span class="text-slate-500"># Install</span>
+<span class="text-blue-300">ARCH</span>=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+<span class="text-blue-300">URL</span>=https://github.com/lcmen/go-pty/releases/latest/download
+mkdir -p ~/.local/bin
+curl -fsSL $URL/go-pty-linux-$ARCH -o ~/.local/bin/go-pty
+chmod +x ~/.local/bin/go-pty
+
+<span class="text-slate-500"># Run</span>
+go-pty -f Procfile</code></pre>
+                <pre
+                  class="code-block"
+                  id="panel-procfile"
+                  x-ref="procfile"
+                  role="tabpanel"
+                  aria-labelledby="tab-procfile"
+                  x-cloak
+                  x-show="tab === 2"
+                ><code><span class="text-slate-500"># Procfile</span>
+<span class="text-blue-300">_:</span> bin/rails assets:precompile
+<span class="text-blue-300">_db:</span> bin/rails db:migrate
+<span class="text-blue-300">web:</span> bin/rails server
+<span class="text-blue-300">worker:</span> bundle exec sidekiq</code></pre>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section section-alt" id="shortcuts">
+        <div class="site-shell">
+          <div class="section-heading">
+            <div class="section-name">Shortcuts</div>
+          </div>
+
+          <article class="card shortcuts-card">
+            <div class="table-wrapper">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Mode</th>
+                    <th>Key</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="table-section" colspan="3">Normal mode</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td><kbd class="shortcuts-keycap">Enter</kbd></td>
+                    <td>Insert a visual separator</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td>
+                      <!-- prettier-ignore -->
+                      <span class="shortcuts-key-combo"><kbd class="shortcuts-keycap">ctrl</kbd><span>+</span><kbd class="shortcuts-keycap">]</kbd></span>
+                    </td>
+                    <td>Open process selection</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td>
+                      <!-- prettier-ignore -->
+                      <span class="shortcuts-key-combo"><kbd class="shortcuts-keycap">ctrl</kbd><span>+</span><kbd class="shortcuts-keycap">c</kbd></span>
+                    </td>
+                    <td>Shut down and exit</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td>
+                      <!-- prettier-ignore -->
+                      <span class="shortcuts-key-combo"><kbd class="shortcuts-keycap">ctrl</kbd><span>+</span><kbd class="shortcuts-keycap">r</kbd></span>
+                    </td>
+                    <td>Rerun preflights and restart all processes</td>
+                  </tr>
+                  <tr>
+                    <td class="table-section" colspan="3">Dialog mode</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td>
+                      <!-- prettier-ignore -->
+                      <span class="shortcuts-key-combo"><kbd class="shortcuts-keycap">↑</kbd><kbd class="shortcuts-keycap">↓</kbd></span>
+                    </td>
+                    <td>Navigate the process list</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td><kbd class="shortcuts-keycap">Enter</kbd></td>
+                    <td>Attach to the selected process</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td><kbd class="shortcuts-keycap">Esc</kbd></td>
+                    <td>Cancel</td>
+                  </tr>
+                  <tr>
+                    <td class="table-section" colspan="3">Attached mode</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td>
+                      <!-- prettier-ignore -->
+                      <span class="shortcuts-key-combo"><kbd class="shortcuts-keycap">ctrl</kbd><span>+</span><kbd class="shortcuts-keycap">]</kbd></span>
+                    </td>
+                    <td>Detach and return to combined output</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="demo">
+        <div class="site-shell">
+          <div class="section-heading">
+            <div class="section-name">Demo</div>
+          </div>
+
+          <div class="card">
+            <article class="card-body">
+              <video
+                class="w-full block rounded-md"
                 controls
                 muted
                 playsinline
                 preload="metadata"
-            >
-                <source src="screencast2.mp4" type="video/mp4" />
-            </video>
-
-            <h2 class="text-xl font-semibold mb-4">Quick start</h2>
-
-            <code
-                class="block bg-gray-900 rounded p-4 text-sm mb-8 overflow-x-auto"
-            >
-                <span class="text-gray-500"># Install (macOS)</span><br />
-                brew tap lcmen/extra
-                <br />
-                brew install go-pty
-                <br />
-                <br />
-                <span class="text-gray-500"># Install (Linux)</span><br />
-                ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-                <br />
-                URL=https://github.com/lcmen/go-pty/releases/latest/download
-                <br />
-                curl -fsSL $URL/go-pty-linux-$ARCH -o ~/.local/bin/go-pty
-                <br />
-                chmod +x ~/.local/bin/go-pty
-                <br />
-                <br />
-                <span class="text-gray-500"># Run</span>
-                <br />
-                go-pty -f Procfile
-                <br />
-                <br />
-                <span class="text-gray-500"># Run subset of processes</span>
-                <br />
-                go-pty -f Procfile -s web,worker
-                <br />
-                <br />
-                <span class="text-gray-500"
-                    ># Load env vars from .env file</span
-                >
-                <br />
-                go-pty -f Procfile -e .env
-            </code>
-
-            <h2 class="text-xl font-semibold mb-4">Procfile example</h2>
-
-            <code
-                class="block bg-gray-900 rounded p-4 text-sm mb-8 overflow-x-auto"
-            >
-                <span class="text-gray-500"># Procfile</span><br />
-                _: bin/rails assets:precompile
-                <br />
-                _db: bin/rails db:migrate
-                <br />
-                web: bin/rails server
-                <br />
-                worker: bundle exec sidekiq
-            </code>
-
-            <p class="text-gray-400 text-sm mb-4">
-                Entries prefixed with
-                <code
-                    class="bg-gray-800 px-1.5 py-0.5 rounded text-xs text-gray-300"
-                    >_</code
-                >
-                (called preflights) run before services start in alphabetical
-                order. They stop the whole launch on failure, always run with
-                <code
-                    class="bg-gray-800 px-1.5 py-0.5 rounded text-xs text-gray-300"
-                    >-s</code
-                >
-                filters, and run again on restart.
-            </p>
-
-            <p class="text-gray-500 italic text-sm mb-8">
-                Keep preflights short-lived. They are meant for setup checks and
-                one-off preparation, not long-running watchers or interactive
-                commands.
-            </p>
-
-            <h2 class="text-xl font-semibold mb-4">Keyboard shortcuts</h2>
-
-            <table class="w-full text-sm mb-8">
-                <thead>
-                    <tr class="border-b border-gray-800 text-left">
-                        <th class="py-2 text-gray-400">Mode</th>
-                        <th class="py-2 text-gray-400">Key</th>
-                        <th class="py-2 text-gray-400">Action</th>
-                    </tr>
-                </thead>
-
-                <tbody class="text-gray-300">
-                    <tr class="border-b border-gray-800 bg-gray-900/50">
-                        <td class="py-2 font-medium text-gray-200" colspan="3">
-                            Normal mode
-                        </td>
-                    </tr>
-
-                    <tr class="border-b border-gray-900">
-                        <td class="py-2"></td>
-
-                        <td class="py-2">
-                            <kbd
-                                class="bg-gray-800 px-1.5 py-0.5 rounded text-xs"
-                                >Enter</kbd
-                            >
-                        </td>
-
-                        <td class="py-2">Insert visual separator</td>
-                    </tr>
-
-                    <tr class="border-b border-gray-900">
-                        <td class="py-2"></td>
-
-                        <td class="py-2">
-                            <kbd
-                                class="bg-gray-800 px-1.5 py-0.5 rounded text-xs"
-                            >
-                                ctrl+]
-                            </kbd>
-                        </td>
-
-                        <td class="py-2">Open process selection</td>
-                    </tr>
-
-                    <tr class="border-b border-gray-900">
-                        <td class="py-2"></td>
-
-                        <td class="py-2">
-                            <kbd
-                                class="bg-gray-800 px-1.5 py-0.5 rounded text-xs"
-                            >
-                                ctrl+c
-                            </kbd>
-                        </td>
-
-                        <td class="py-2">Shut down and exit</td>
-                    </tr>
-
-                    <tr class="border-b border-gray-900">
-                        <td class="py-2"></td>
-
-                        <td class="py-2">
-                            <kbd
-                                class="bg-gray-800 px-1.5 py-0.5 rounded text-xs"
-                            >
-                                ctrl+r
-                            </kbd>
-                        </td>
-
-                        <td class="py-2">
-                            Rerun preflights and restart all processes
-                        </td>
-                    </tr>
-
-                    <tr class="border-b border-gray-800 bg-gray-900/50">
-                        <td class="py-2 font-medium text-gray-200" colspan="3">
-                            Dialog mode
-                        </td>
-                    </tr>
-
-                    <tr class="border-b border-gray-900">
-                        <td class="py-2"></td>
-
-                        <td class="py-2">
-                            <kbd
-                                class="bg-gray-800 px-1.5 py-0.5 rounded text-xs"
-                            >
-                                Up/Down
-                            </kbd>
-                        </td>
-
-                        <td class="py-2">Navigate list</td>
-                    </tr>
-
-                    <tr class="border-b border-gray-900">
-                        <td class="py-2"></td>
-
-                        <td class="py-2">
-                            <kbd
-                                class="bg-gray-800 px-1.5 py-0.5 rounded text-xs"
-                                >Enter</kbd
-                            >
-                        </td>
-
-                        <td class="py-2">Attach to process</td>
-                    </tr>
-
-                    <tr class="border-b border-gray-900">
-                        <td class="py-2"></td>
-
-                        <td class="py-2">
-                            <kbd
-                                class="bg-gray-800 px-1.5 py-0.5 rounded text-xs"
-                                >Esc</kbd
-                            >
-                        </td>
-
-                        <td class="py-2">Cancel</td>
-                    </tr>
-
-                    <tr class="border-b border-gray-800 bg-gray-900/50">
-                        <td class="py-2 font-medium text-gray-200" colspan="3">
-                            Attached mode
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <td class="py-2"></td>
-
-                        <td class="py-2">
-                            <kbd
-                                class="bg-gray-800 px-1.5 py-0.5 rounded text-xs"
-                            >
-                                ctrl+]
-                            </kbd>
-                        </td>
-
-                        <td class="py-2">Detach</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <footer class="text-gray-600 text-sm flex justify-between">
-                <span>
-                    2026 &copy;
-                    <a
-                        href="https://mendelowski.com"
-                        target="_blank"
-                        class="hover:text-gray-400 transition"
-                    >
-                        Lucas Mendelowski
-                    </a>
-                </span>
-
-                <a
-                    href="https://github.com/lcmen/go-pty/blob/main/LICENSE"
-                    target="_blank"
-                    class="hover:text-gray-400 transition"
-                >
-                    MIT License
-                </a>
-            </footer>
+                aria-label="go-pty screencast"
+              >
+                <source src="https://www.mendelowski.com/go-pty/screencast2.mp4" type="video/mp4" />
+              </video>
+            </article>
+          </div>
         </div>
-    </body>
+      </section>
+    </main>
+
+    <footer class="py-9">
+      <div
+        class="site-shell flex items-center justify-between gap-4 text-xs text-slate-400 max-sm:flex-col max-sm:items-start"
+      >
+        <span
+          >Created by
+          <a
+            class="link link-xs hover:text-slate-700"
+            href="https://www.mendelowski.com/"
+            target="_blank"
+            rel="noreferrer"
+            >Lucas Mendelowski</a
+          ></span
+        >
+        <div class="flex gap-4">
+          <span
+            >Built with
+            <a
+              class="link link-xs hover:text-slate-700"
+              href="https://www.mendelowski.com/bootboat/"
+              target="_blank"
+              rel="noreferrer"
+              >Bootboat</a
+            ></span
+          >
+        </div>
+      </div>
+    </footer>
+  </body>
 </html>
