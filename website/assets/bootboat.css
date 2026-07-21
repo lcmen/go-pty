@@ -1,0 +1,1149 @@
+/*! ============================================================
+ *  Bootboat — Bootstrap-like CSS classes for Tailwind CSS v4
+ *
+ *  Usage:  @import "./bootboat.css";
+ *          (load after Tailwind, before app styles)
+ *
+ *  Naming:  .component            — base / default
+ *           .component-variant    — color or style variant
+ *           .component-sm / -lg   — size modifiers
+ *           .component-full       — full-width modifier
+ *
+ *  Theme:   Override any --color-primary-* or --color-secondary-*
+ *           token in your own @theme block to customize colors.
+ * ============================================================ */
+
+/* ─────────────────────────────────────────────────────────────
+ * THEME — default color palette and typography
+ * ───────────────────────────────────────────────────────────── */
+
+@theme {
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+
+  --color-secondary-50: #f8fafc;
+  --color-secondary-100: #f1f5f9;
+  --color-secondary-200: #e2e8f0;
+  --color-secondary-300: #cbd5e1;
+  --color-secondary-400: #94a3b8;
+  --color-secondary-500: #64748b;
+  --color-secondary-600: #475569;
+  --color-secondary-700: #334155;
+  --color-secondary-800: #1e293b;
+  --color-secondary-900: #0f172a;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 0. BASE — cursor defaults for interactive elements
+ * ───────────────────────────────────────────────────────────── */
+
+a,
+button,
+select,
+summary,
+label[for],
+[type="checkbox"],
+[type="radio"],
+[type="submit"],
+[role="button"] {
+  cursor: pointer;
+}
+
+[x-cloak] {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 1. ACCORDION
+ * ───────────────────────────────────────────────────────────── */
+
+@utility accordion {
+  :where(&) {
+    @apply divide-y divide-gray-100;
+  }
+}
+@utility accordion-bordered {
+  :where(&) {
+    @apply rounded-lg border-light bg-white shadow-sm;
+  }
+  & .accordion-trigger {
+    @apply px-4;
+  }
+  & .accordion-panel {
+    @apply border-t border-gray-100 p-4;
+  }
+  & .accordion-item[open] .accordion-trigger {
+    @apply bg-gray-50;
+  }
+}
+@utility accordion-item {
+  & > summary::-webkit-details-marker {
+    display: none;
+  }
+  & > summary {
+    list-style: none;
+  }
+  &[open] .accordion-icon {
+    @apply rotate-180;
+  }
+}
+@utility accordion-trigger {
+  :where(&) {
+    @apply flex w-full cursor-pointer list-none items-center justify-between gap-3 py-4 text-left text-lg font-medium text-secondary-900;
+  }
+}
+@utility accordion-panel {
+  :where(&) {
+    @apply pb-4 text-secondary-500;
+  }
+}
+@utility accordion-icon {
+  :where(&) {
+    @apply h-5 w-5 shrink-0 text-secondary-500 transition-all duration-300;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 2. ALERT / FLASH MESSAGE
+ * ───────────────────────────────────────────────────────────── */
+
+@utility alert {
+  :where(&) {
+    @apply flex rounded-md p-4 text-sm;
+  }
+}
+@utility alert-info {
+  :where(&) {
+    @apply bg-primary-50 text-primary-500;
+  }
+}
+@utility alert-success {
+  :where(&) {
+    @apply bg-green-50 text-green-500;
+  }
+}
+@utility alert-warning {
+  :where(&) {
+    @apply bg-yellow-50 text-yellow-600;
+  }
+}
+@utility alert-danger {
+  :where(&) {
+    @apply bg-red-50 text-red-500;
+  }
+}
+@utility alert-icon {
+  :where(&) {
+    @apply mr-3 h-5 w-5 shrink-0;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 3. BADGE
+ * ───────────────────────────────────────────────────────────── */
+
+@utility badge {
+  :where(&) {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold;
+  }
+}
+@utility badge-primary {
+  :where(&) {
+    @apply bg-primary-50 text-primary-600;
+  }
+}
+@utility badge-success {
+  :where(&) {
+    @apply bg-green-50 text-green-600;
+  }
+}
+@utility badge-warning {
+  :where(&) {
+    @apply bg-yellow-50 text-yellow-600;
+  }
+}
+@utility badge-danger {
+  :where(&) {
+    @apply bg-red-50 text-red-600;
+  }
+}
+@utility badge-info {
+  :where(&) {
+    @apply bg-sky-50 text-sky-600;
+  }
+}
+@utility badge-gray {
+  :where(&) {
+    @apply bg-gray-100 text-gray-600;
+  }
+}
+@utility badge-dark {
+  :where(&) {
+    @apply bg-secondary-800 text-white;
+  }
+}
+@utility badge-square {
+  :where(&) {
+    @apply rounded-md;
+  }
+}
+@utility badge-lg {
+  :where(&) {
+    @apply px-3 py-1 text-sm;
+  }
+}
+@utility badge-dot {
+  :where(&) {
+    @apply inline-block h-1.5 w-1.5 rounded-full;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 4. BREADCRUMB
+ * ───────────────────────────────────────────────────────────── */
+
+@utility breadcrumb {
+  :where(&) {
+    @apply inline-flex items-center space-x-4 py-2 text-sm font-medium;
+  }
+}
+@utility breadcrumb-bg {
+  :where(&) {
+    @apply rounded-lg bg-secondary-50 px-4;
+  }
+}
+@utility breadcrumb-item {
+  :where(&) {
+    @apply inline-flex items-center text-secondary-500 transition-colors;
+  }
+  @variant hover {
+    @apply text-secondary-600;
+  }
+}
+@utility breadcrumb-separator {
+  :where(&) {
+    @apply inline-flex items-center space-x-4 text-secondary-400;
+  }
+}
+@utility breadcrumb-current {
+  :where(&) {
+    @apply inline-flex items-center text-secondary-700;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 5. BUTTONS
+ * ───────────────────────────────────────────────────────────── */
+
+@utility btn {
+  :where(&) {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-center text-sm font-medium shadow-sm transition-all;
+  }
+  @variant disabled {
+    @apply cursor-not-allowed;
+  }
+}
+
+@utility btn-primary {
+  :where(&) {
+    @apply border-primary bg-primary-500 text-white;
+  }
+  @variant hover {
+    @apply border-primary-700 bg-primary-700;
+  }
+  @variant focus {
+    @apply ring ring-primary-200;
+  }
+  @variant disabled {
+    @apply border-primary-300 bg-primary-300;
+  }
+}
+
+@utility btn-secondary {
+  :where(&) {
+    @apply border-secondary bg-white text-gray-700;
+  }
+  @variant hover {
+    @apply bg-gray-100;
+  }
+  @variant focus {
+    @apply ring ring-gray-100;
+  }
+  @variant disabled {
+    @apply border-gray-100 bg-gray-50 text-gray-400;
+  }
+}
+
+@utility btn-danger {
+  :where(&) {
+    @apply border-danger bg-red-500 text-white;
+  }
+  @variant hover {
+    @apply border-red-700 bg-red-700;
+  }
+  @variant focus {
+    @apply ring ring-red-200;
+  }
+  @variant disabled {
+    @apply border-red-300 bg-red-300;
+  }
+}
+
+@utility btn-warning {
+  :where(&) {
+    @apply border-warning bg-yellow-500 text-white;
+  }
+  @variant hover {
+    @apply border-yellow-600 bg-yellow-600;
+  }
+  @variant focus {
+    @apply ring ring-yellow-200;
+  }
+  @variant disabled {
+    @apply border-yellow-300 bg-yellow-300;
+  }
+}
+
+@utility btn-success {
+  :where(&) {
+    @apply border-success bg-green-500 text-white;
+  }
+  @variant hover {
+    @apply border-green-700 bg-green-700;
+  }
+  @variant focus {
+    @apply ring ring-green-200;
+  }
+  @variant disabled {
+    @apply border-green-300 bg-green-300;
+  }
+}
+
+@utility btn-info {
+  :where(&) {
+    @apply border-info bg-sky-500 text-white;
+  }
+  @variant hover {
+    @apply border-sky-700 bg-sky-700;
+  }
+  @variant focus {
+    @apply ring ring-sky-200;
+  }
+  @variant disabled {
+    @apply border-sky-300 bg-sky-300;
+  }
+}
+
+@utility btn-dark {
+  :where(&) {
+    @apply border-dark bg-secondary-800 text-white;
+  }
+  @variant hover {
+    @apply border-secondary-900 bg-secondary-900;
+  }
+  @variant focus {
+    @apply ring ring-secondary-200;
+  }
+  @variant disabled {
+    @apply border-secondary-400 bg-secondary-400;
+  }
+}
+
+@utility btn-ghost {
+  :where(&) {
+    @apply border border-transparent bg-transparent text-secondary-500 shadow-none;
+  }
+  @variant hover {
+    @apply bg-secondary-100 text-secondary-700;
+  }
+  @variant focus {
+    @apply ring ring-secondary-100;
+  }
+}
+
+@utility btn-glass {
+  :where(&) {
+    @apply border border-white/30 bg-white/15 text-white backdrop-blur shadow-sm;
+  }
+  @variant hover {
+    @apply bg-white/25;
+  }
+}
+
+@utility btn-white {
+  :where(&) {
+    @apply border border-transparent bg-white text-secondary-800 shadow-lg;
+  }
+  @variant hover {
+    @apply bg-white/90;
+  }
+}
+
+@utility btn-sm {
+  :where(&) {
+    @apply px-3 py-1.5 text-xs;
+  }
+}
+@utility btn-lg {
+  :where(&) {
+    @apply px-8 py-3 text-base;
+  }
+}
+@utility btn-full {
+  :where(&) {
+    @apply w-full;
+  }
+}
+
+@utility btn-icon {
+  :where(&) {
+    @apply inline-flex items-center justify-center rounded-lg p-2 text-center text-sm font-medium shadow-sm transition-all;
+  }
+  @variant disabled {
+    @apply cursor-not-allowed;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 6. BUTTON GROUP
+ * ───────────────────────────────────────────────────────────── */
+
+@utility btn-group {
+  :where(&) {
+    @apply inline-flex -space-x-px overflow-hidden rounded-lg border-secondary bg-white shadow-sm;
+  }
+}
+@utility btn-group-item {
+  :where(&) {
+    @apply px-2.5 py-2 text-center text-sm font-medium text-gray-700 transition-all;
+  }
+  @variant hover {
+    @apply bg-gray-100;
+  }
+  @variant focus {
+    @apply z-10 ring ring-gray-100;
+  }
+}
+@utility btn-group-item-active {
+  :where(&) {
+    @apply bg-primary-50 text-primary-600;
+  }
+}
+@utility btn-group-label {
+  :where(&) {
+    @apply border-x border-gray-300 px-4 py-2 text-center text-sm font-bold text-secondary-900;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 7. CARD
+ * ───────────────────────────────────────────────────────────── */
+
+@utility card {
+  :where(&) {
+    @apply overflow-hidden rounded-lg bg-white shadow;
+  }
+}
+@utility card-body {
+  :where(&) {
+    @apply relative p-6;
+  }
+}
+@utility card-sm {
+  :where(&) {
+    @apply mx-auto w-full max-w-sm;
+  }
+}
+@utility card-md {
+  :where(&) {
+    @apply mx-auto w-full max-w-md;
+  }
+}
+@utility card-lg {
+  :where(&) {
+    @apply mx-auto w-full max-w-lg;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 8. DIVIDER
+ * ───────────────────────────────────────────────────────────── */
+
+@utility divider {
+  :where(&) {
+    @apply my-5 flex items-center gap-4;
+  }
+  &::before,
+  &::after {
+    content: "";
+    @apply h-px flex-1 bg-gray-300;
+  }
+}
+@utility divider-text {
+  :where(&) {
+    @apply text-xs text-secondary-400;
+  }
+}
+@utility divider-line {
+  :where(&) {
+    @apply my-4 border-t border-gray-200;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 9. DROPDOWN
+ * ───────────────────────────────────────────────────────────── */
+
+@utility dropdown {
+  :where(&) {
+    @apply relative inline-block;
+  }
+}
+@utility dropdown-trigger {
+  :where(&) {
+    @apply inline-flex items-center gap-2 rounded-lg border-secondary bg-white px-3 py-2 text-center text-sm font-medium text-gray-700 shadow-sm transition-all;
+  }
+  @variant hover {
+    @apply bg-gray-100;
+  }
+  @variant focus {
+    @apply ring ring-gray-100;
+  }
+  @variant disabled {
+    @apply cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400;
+  }
+}
+@utility dropdown-panel {
+  :where(&) {
+    @apply absolute z-10 mt-2 w-48 divide-y divide-gray-100 rounded-lg border-light bg-white text-left text-sm shadow-lg;
+  }
+}
+@utility dropdown-panel-right {
+  :where(&) {
+    @apply right-0;
+  }
+}
+@utility dropdown-panel-left {
+  :where(&) {
+    @apply left-0;
+  }
+}
+@utility dropdown-panel-wide {
+  :where(&) {
+    @apply w-56;
+  }
+}
+@utility dropdown-section {
+  :where(&) {
+    @apply p-1;
+  }
+}
+@utility dropdown-item {
+  :where(&) {
+    @apply flex w-full items-center rounded-md px-3 py-2 text-gray-700 transition-colors;
+  }
+  @variant hover {
+    @apply bg-gray-100;
+  }
+}
+@utility dropdown-item-danger {
+  :where(&) {
+    @apply text-red-600;
+  }
+}
+@utility dropdown-item-icon {
+  :where(&) {
+    @apply mr-2.5 h-4 w-4 text-secondary-400;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 10. FORMS — inputs, selects, labels, validation
+ * ───────────────────────────────────────────────────────────── */
+
+@utility form-label {
+  :where(&) {
+    @apply mb-1 block text-sm font-medium text-gray-700;
+  }
+}
+@utility form-label-required {
+  &::after {
+    content: "*";
+    @apply ml-0.5 text-red-500;
+  }
+}
+
+@utility form-control {
+  :where(&) {
+    @apply block w-full rounded-md border-secondary bg-white shadow-sm px-3 py-2 text-sm;
+  }
+  @variant focus {
+    @apply border-primary-400 ring ring-inset ring-primary-200 outline-none;
+  }
+  @variant disabled {
+    @apply cursor-not-allowed bg-gray-50 text-gray-500;
+  }
+}
+@utility form-choice {
+  :where(&) {
+    @apply h-4 w-4 border-gray-300 text-primary-600 shadow-sm;
+  }
+  @variant focus {
+    @apply border-primary-300 ring ring-inset ring-primary-200 ring-offset-0;
+  }
+  @variant disabled {
+    @apply cursor-not-allowed text-gray-400;
+  }
+}
+
+@utility form-input {
+  :where(&) {
+    @apply form-control cursor-text;
+  }
+}
+@utility form-input-error {
+  :where(&) {
+    @apply border-danger;
+  }
+  @variant focus {
+    @apply border-red-300 ring ring-inset ring-red-200 outline-none;
+  }
+}
+@utility form-select {
+  :where(&) {
+    @apply form-control;
+  }
+}
+@utility form-checkbox {
+  :where(&) {
+    @apply form-choice rounded;
+  }
+}
+@utility form-radio {
+  :where(&) {
+    @apply form-choice rounded-full;
+  }
+}
+@utility form-textarea {
+  :where(&) {
+    @apply form-control;
+  }
+}
+@utility form-textarea-error {
+  :where(&) {
+    @apply border-danger;
+  }
+  @variant focus {
+    @apply border-red-300 ring ring-inset ring-red-200 outline-none;
+  }
+}
+@utility form-file {
+  :where(&) {
+    @apply form-control cursor-pointer rounded-none border-0 bg-transparent px-0 py-0 shadow-none text-sm focus:outline-none focus:ring-0 file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-primary-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-primary-700;
+  }
+  @variant disabled {
+    @apply pointer-events-none opacity-60;
+  }
+}
+@utility form-file-dropzone {
+  :where(&) {
+    @apply flex w-full cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-gray-200 p-6 transition-all;
+  }
+  @variant hover {
+    @apply border-primary-300;
+  }
+}
+@utility form-toggle {
+  :where(&) {
+    @apply relative inline-flex cursor-pointer items-center;
+  }
+}
+@utility form-toggle-track {
+  :where(&) {
+    @apply h-6 w-11 rounded-full bg-gray-100 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-all after:content-[''] peer-checked:bg-primary-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:ring-4 peer-focus:ring-primary-200;
+  }
+  @variant hover {
+    @apply bg-gray-200;
+  }
+  .peer:checked ~ &:hover {
+    background-color: var(--color-primary-700);
+  }
+}
+@utility form-toggle-track-sm {
+  :where(&) {
+    @apply h-5 w-9 after:h-4 after:w-4;
+  }
+}
+@utility form-toggle-track-lg {
+  :where(&) {
+    @apply h-8 w-14 after:top-1 after:left-1 after:h-6 after:w-6;
+  }
+}
+
+@utility form-help {
+  :where(&) {
+    @apply mt-1 text-sm text-gray-500;
+  }
+}
+@utility form-error {
+  :where(&) {
+    @apply mt-1 text-sm text-red-500;
+  }
+}
+@utility form-inline {
+  :where(&) {
+    @apply relative z-0 flex;
+  }
+}
+@utility form-addon {
+  :where(&) {
+    @apply flex items-center;
+  }
+}
+@utility form-addon-left {
+  :where(&) {
+    @apply flex items-center rounded-l-md rounded-r-none border-y !border-r-0 border-l border-gray-300 bg-white px-2.5 py-2 text-sm text-gray-500 shadow-sm;
+  }
+}
+@utility form-addon-right {
+  :where(&) {
+    @apply flex items-center rounded-r-md rounded-l-none border-y border-r !border-l-0 border-gray-300 bg-white px-2.5 py-2 text-sm text-gray-500 shadow-sm;
+  }
+}
+@utility has-addon-left {
+  & {
+    @apply rounded-l-none relative z-10;
+  }
+  &:focus {
+    @apply z-20;
+  }
+}
+@utility has-addon-right {
+  & {
+    @apply rounded-r-none relative z-10;
+  }
+  &:focus {
+    @apply z-20;
+  }
+}
+@utility form-addon-disabled {
+  :where(&) {
+    @apply cursor-not-allowed bg-gray-50 text-gray-400;
+  }
+}
+@utility form-group {
+  :where(&) {
+    @apply space-y-4;
+  }
+}
+@utility form-row {
+  :where(&) {
+    @apply grid grid-cols-2 gap-3;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 11. LIST
+ * ───────────────────────────────────────────────────────────── */
+
+@utility list-icon {
+  :where(&) {
+    @apply space-y-3;
+  }
+}
+@utility list-icon-item {
+  :where(&) {
+    @apply flex gap-3;
+  }
+}
+@utility list-icon-marker {
+  :where(&) {
+    @apply h-5 w-5 shrink-0 text-primary-500;
+  }
+}
+@utility list-bordered {
+  :where(&) {
+    @apply divide-y divide-gray-200 rounded-xl border-muted shadow-sm;
+  }
+}
+@utility list-bordered-item {
+  :where(&) {
+    @apply p-4;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 12. MEDIA OBJECT
+ * ───────────────────────────────────────────────────────────── */
+
+@utility media {
+  :where(&) {
+    @apply flex gap-4;
+  }
+}
+@utility media-center {
+  :where(&) {
+    @apply items-center;
+  }
+}
+@utility media-bottom {
+  :where(&) {
+    @apply items-end;
+  }
+}
+@utility media-img {
+  :where(&) {
+    @apply h-12 w-12 shrink-0 rounded object-cover object-center;
+  }
+}
+@utility media-img-lg {
+  :where(&) {
+    @apply h-16 w-16;
+  }
+}
+@utility media-body {
+  :where(&) {
+    @apply flex-1;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 13. MODAL
+ * ───────────────────────────────────────────────────────────── */
+
+@utility modal-overlay {
+  :where(&) {
+    @apply fixed inset-0 z-40 bg-secondary-700/50;
+  }
+}
+@utility modal-wrapper {
+  :where(&) {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0;
+  }
+}
+@utility modal {
+  :where(&) {
+    @apply mx-auto w-full max-w-md rounded-lg bg-white shadow-xl;
+  }
+}
+@utility modal-lg {
+  :where(&) {
+    @apply sm:max-w-lg;
+  }
+}
+@utility modal-xl {
+  :where(&) {
+    @apply sm:max-w-xl;
+  }
+}
+@utility modal-body {
+  :where(&) {
+    @apply relative p-6;
+  }
+}
+@utility modal-close {
+  :where(&) {
+    @apply absolute top-4 right-4 rounded-lg p-1 text-center font-medium text-secondary-500 transition-all;
+  }
+  @variant hover {
+    @apply bg-secondary-100;
+  }
+}
+@utility modal-footer {
+  :where(&) {
+    @apply flex justify-end gap-3 rounded-b-lg bg-secondary-50 px-6 py-3;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 14. NAVBAR
+ * ───────────────────────────────────────────────────────────── */
+
+@utility navbar {
+  :where(&) {
+    @apply sticky top-0 z-30 border-b border-secondary-200 bg-white;
+  }
+}
+@utility navbar-inner {
+  :where(&) {
+    @apply mx-auto flex-between px-4 py-3;
+  }
+}
+@utility navbar-brand {
+  :where(&) {
+    @apply flex items-center gap-2 text-lg font-bold text-secondary-900;
+  }
+}
+@utility navbar-brand-icon {
+  :where(&) {
+    @apply flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500 text-sm font-extrabold text-white;
+  }
+}
+@utility navbar-actions {
+  :where(&) {
+    @apply flex items-center gap-2;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 15. PAGINATION
+ * ───────────────────────────────────────────────────────────── */
+
+@utility pagination {
+  :where(&) {
+    @apply inline-flex -space-x-px rounded-md shadow-sm;
+  }
+}
+@utility pagination-item {
+  :where(&) {
+    @apply inline-flex items-center border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-500 transition-colors;
+  }
+  @variant hover {
+    @apply bg-gray-50;
+  }
+}
+@utility pagination-item-active {
+  :where(&) {
+    @apply border-primary-500 bg-primary-50 text-primary-600 z-10;
+  }
+}
+@utility pagination-prev {
+  :where(&) {
+    @apply rounded-l-md px-2;
+  }
+}
+@utility pagination-next {
+  :where(&) {
+    @apply rounded-r-md px-2;
+  }
+}
+@utility pagination-icon {
+  :where(&) {
+    @apply h-5 w-5;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 16. TABLE
+ * ───────────────────────────────────────────────────────────── */
+
+@utility table-wrapper {
+  :where(&) {
+    @apply overflow-x-auto;
+  }
+}
+@layer utilities {
+  :where(.table) {
+    @apply w-full border-separate border-spacing-0 rounded-lg border border-gray-200 bg-white text-left text-sm text-gray-500;
+  }
+  :where(.table thead) {
+    @apply bg-gray-50;
+  }
+  :where(.table tbody) {
+    @apply divide-y divide-gray-100;
+  }
+  :where(.table th) {
+    @apply px-6 py-4 font-medium text-gray-900;
+  }
+  :where(.table td) {
+    @apply px-6 py-4;
+  }
+  :where(.table thead tr:first-child th:first-child) {
+    @apply rounded-tl-lg;
+  }
+  :where(.table thead tr:first-child th:last-child) {
+    @apply rounded-tr-lg;
+  }
+  :where(.table tbody tr:last-child th:first-child) {
+    @apply rounded-bl-lg;
+  }
+  :where(.table tbody tr:last-child td:last-child) {
+    @apply rounded-br-lg;
+  }
+  :where(.table-striped tbody tr) {
+    @apply odd:bg-white even:bg-gray-50;
+  }
+  :where(.table-hover tbody tr) {
+    @apply hover:bg-gray-50;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 17. TABS
+ * ───────────────────────────────────────────────────────────── */
+
+@utility tab-list {
+  :where(&) {
+    @apply border-b border-gray-100;
+  }
+}
+@utility tab-list-inner {
+  :where(&) {
+    @apply -mb-px flex items-center gap-4 text-sm font-medium;
+  }
+}
+@utility tab-item {
+  :where(&) {
+    @apply inline-flex cursor-pointer items-center gap-2 px-1 py-3 text-gray-500 transition-colors;
+  }
+  @variant hover {
+    @apply text-primary-700;
+  }
+}
+@utility tab-item-active {
+  :where(&) {
+    @apply text-primary-700 relative;
+  }
+  &::after {
+    content: "";
+    @apply absolute left-0 bottom-0 h-0.5 w-full bg-primary-700;
+  }
+}
+@utility tab-panel {
+  :where(&) {
+    @apply py-3;
+  }
+}
+@utility tab-badge {
+  :where(&) {
+    @apply rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 18. TYPOGRAPHY — headings, paragraphs, links
+ * ───────────────────────────────────────────────────────────── */
+
+@utility h1 {
+  :where(&) {
+    @apply text-5xl font-bold leading-tight;
+  }
+}
+@utility h2 {
+  :where(&) {
+    @apply text-2xl font-bold;
+  }
+}
+@utility h3 {
+  :where(&) {
+    @apply text-xl font-medium;
+  }
+}
+@utility h4 {
+  :where(&) {
+    @apply text-lg font-medium;
+  }
+}
+@utility h5 {
+  :where(&) {
+    @apply text-base font-medium;
+  }
+}
+@utility h6 {
+  :where(&) {
+    @apply text-sm font-semibold;
+  }
+}
+
+@utility link {
+  :where(&) {
+    @apply font-medium text-primary-500 transition-colors;
+  }
+  @variant hover {
+    @apply text-primary-700;
+  }
+}
+@utility link-sm {
+  :where(&) {
+    @apply text-sm;
+  }
+}
+@utility link-xs {
+  :where(&) {
+    @apply text-xs;
+  }
+}
+@utility link-danger {
+  :where(&) {
+    @apply text-red-500;
+  }
+  @variant hover {
+    @apply text-red-700;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 19. UTILITIES — semantic borders and page scaffolding
+ * ───────────────────────────────────────────────────────────── */
+
+@utility border-secondary {
+  :where(&) {
+    @apply border border-gray-300;
+  }
+}
+@utility border-primary {
+  :where(&) {
+    @apply border border-primary-500;
+  }
+}
+@utility border-light {
+  :where(&) {
+    @apply border border-gray-100;
+  }
+}
+@utility border-muted {
+  :where(&) {
+    @apply border border-gray-200;
+  }
+}
+@utility border-danger {
+  :where(&) {
+    @apply border border-red-500;
+  }
+}
+@utility border-warning {
+  :where(&) {
+    @apply border border-yellow-500;
+  }
+}
+@utility border-success {
+  :where(&) {
+    @apply border border-green-500;
+  }
+}
+@utility border-info {
+  :where(&) {
+    @apply border border-sky-500;
+  }
+}
+@utility border-dark {
+  :where(&) {
+    @apply border border-secondary-800;
+  }
+}
+
+@utility flex-between {
+  :where(&) {
+    @apply flex items-center justify-between;
+  }
+}
+@utility center-page {
+  :where(&) {
+    @apply flex flex-1 items-center justify-center p-4;
+  }
+}
+@utility page-shell {
+  :where(&) {
+    @apply flex min-h-screen flex-col;
+  }
+}

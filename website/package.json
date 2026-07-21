@@ -1,0 +1,15 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "tailwindcss --input assets/source.css --output assets/build.css --minify",
+    "dev": "concurrently \"npm run watch\" \"serve .\"",
+    "watch": "tailwindcss --input assets/source.css --output assets/build.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.2.1",
+    "@tailwindcss/forms": "^0.5.10",
+    "concurrently": "^9.2.1",
+    "serve": "^14.2.4",
+    "tailwindcss": "^4.2.1"
+  }
+}
