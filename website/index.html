@@ -110,8 +110,9 @@
             target="_blank"
             rel="noreferrer"
             @click="mobileMenuOpen = false"
-            >GitHub</a
           >
+            GitHub
+          </a>
         </div>
       </div>
     </nav>
@@ -120,7 +121,11 @@
       <section class="pt-15 pb-9 lg:pt-20 xl:pt-26">
         <div class="site-shell grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16 xl:gap-26">
           <div class="max-w-none text-center lg:max-w-2xl lg:text-left">
-            <h1 class="h1">Procfile processes.<br /><span class="text-blue-600">Real terminals.</span></h1>
+            <h1 class="h1">
+              Procfile processes.
+              <br />
+              <span class="text-blue-600">Real terminals.</span>
+            </h1>
             <p class="text-lead max-w-xl mt-6 mx-auto lg:mx-0">
               See all process output together, then attach to any service for an interactive debugger or REPL.
             </p>
@@ -156,7 +161,8 @@
                   class="terminal-button"
                   @click="terminalState = terminalState === 'attached' || terminalState === 'dialog' ? 'combined' : 'dialog'"
                 >
-                  <kbd>ctrl</kbd><kbd>]</kbd>
+                  <kbd>ctrl</kbd>
+                  <kbd>]</kbd>
                   <span
                     x-text="terminalState === 'attached' ? 'Detach' : terminalState === 'dialog' ? 'Cancel' : 'Attach'"
                   ></span>
@@ -174,48 +180,51 @@
 Starting all process(es):</pre
                   >
                   <div class="terminal-line">
-                    <span class="text-blue-400">web</span><span class="text-slate-50">Puma starting...</span>
+                    <span class="text-blue-400">web</span>
+                    <span class="text-slate-50">Puma starting...</span>
                   </div>
                   <div class="terminal-line">
-                    <span class="text-blue-400">web</span
-                    ><span>Listening on <span class="text-green-400">http://127.0.0.1:3000</span></span>
+                    <span class="text-blue-400">web</span>
+                    <span>
+                      Listening on
+                      <span class="text-green-400">http://127.0.0.1:3000</span>
+                    </span>
                   </div>
                   <div class="terminal-line">
-                    <span class="text-purple-400">worker</span
-                    ><span class="text-slate-50">Sidekiq connected to Redis</span>
-                  </div>
-                  <div class="terminal-line">
-                    <span class="text-slate-500">go-pty</span
-                    ><span class="text-slate-500">Press ctrl+] to attach<span class="terminal-cursor"></span></span>
+                    <span class="text-purple-400">worker</span>
+                    <span class="text-slate-50">Sidekiq connected to Redis</span>
                   </div>
                 </div>
 
                 <div x-show="terminalState === 'attached'" x-cloak>
                   <div class="mb-px text-blue-100">
-                    [go-pty] Attached to <span x-text="selectedProcess"></span> (ctrl+] to detach)
+                    [go-pty] Attached to
+                    <span x-text="selectedProcess"></span>
+                    (ctrl+] to detach)
                   </div>
                   <div class="terminal-line">
                     <span
                       :class="selectedProcess === 'worker' ? 'text-purple-400' : 'text-blue-400'"
                       x-text="selectedProcess"
-                    ></span
-                    ><span>Processing by PagesController#home</span>
-                  </div>
-                  <div class="terminal-line">
-                    <span
-                      :class="selectedProcess === 'worker' ? 'text-purple-400' : 'text-blue-400'"
-                      x-text="selectedProcess"
-                    ></span
-                    ><span>From: app/controllers/pages_controller.rb:6</span>
-                  </div>
-                  <div class="terminal-line">
-                    <span
-                      :class="selectedProcess === 'worker' ? 'text-purple-400' : 'text-blue-400'"
-                      x-text="selectedProcess"
-                    ></span
-                    ><span class="text-slate-50"
-                      >[1] pry(#&lt;PagesController&gt;)&gt; <span class="terminal-cursor"></span
                     ></span>
+                    <span>Processing by PagesController#home</span>
+                  </div>
+                  <div class="terminal-line">
+                    <span
+                      :class="selectedProcess === 'worker' ? 'text-purple-400' : 'text-blue-400'"
+                      x-text="selectedProcess"
+                    ></span>
+                    <span>From: app/controllers/pages_controller.rb:6</span>
+                  </div>
+                  <div class="terminal-line">
+                    <span
+                      :class="selectedProcess === 'worker' ? 'text-purple-400' : 'text-blue-400'"
+                      x-text="selectedProcess"
+                    ></span>
+                    <span class="text-slate-50">
+                      [1] pry(#&lt;PagesController&gt;)&gt;
+                      <span class="terminal-cursor"></span>
+                    </span>
                   </div>
                 </div>
 
@@ -332,7 +341,10 @@ Starting all process(es):</pre
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="m5 12 4 4L19 6" />
                   </svg>
-                  <span><code>ctrl+]</code> toggles attachment</span>
+                  <span>
+                    <code>ctrl+]</code>
+                    toggles attachment
+                  </span>
                 </div>
               </div>
             </article>
@@ -548,24 +560,33 @@ go-pty -f Procfile</code></pre>
                   <tr>
                     <td></td>
                     <td>
-                      <!-- prettier-ignore -->
-                      <span class="shortcuts-key-combo"><kbd class="shortcuts-keycap">ctrl</kbd><span>+</span><kbd class="shortcuts-keycap">]</kbd></span>
+                      <span class="shortcuts-key-combo">
+                        <kbd class="shortcuts-keycap">ctrl</kbd>
+                        <span>+</span>
+                        <kbd class="shortcuts-keycap">]</kbd>
+                      </span>
                     </td>
                     <td>Open process selection</td>
                   </tr>
                   <tr>
                     <td></td>
                     <td>
-                      <!-- prettier-ignore -->
-                      <span class="shortcuts-key-combo"><kbd class="shortcuts-keycap">ctrl</kbd><span>+</span><kbd class="shortcuts-keycap">c</kbd></span>
+                      <span class="shortcuts-key-combo">
+                        <kbd class="shortcuts-keycap">ctrl</kbd>
+                        <span>+</span>
+                        <kbd class="shortcuts-keycap">c</kbd>
+                      </span>
                     </td>
                     <td>Shut down and exit</td>
                   </tr>
                   <tr>
                     <td></td>
                     <td>
-                      <!-- prettier-ignore -->
-                      <span class="shortcuts-key-combo"><kbd class="shortcuts-keycap">ctrl</kbd><span>+</span><kbd class="shortcuts-keycap">r</kbd></span>
+                      <span class="shortcuts-key-combo">
+                        <kbd class="shortcuts-keycap">ctrl</kbd>
+                        <span>+</span>
+                        <kbd class="shortcuts-keycap">r</kbd>
+                      </span>
                     </td>
                     <td>Rerun preflights and restart all processes</td>
                   </tr>
@@ -575,8 +596,10 @@ go-pty -f Procfile</code></pre>
                   <tr>
                     <td></td>
                     <td>
-                      <!-- prettier-ignore -->
-                      <span class="shortcuts-key-combo"><kbd class="shortcuts-keycap">↑</kbd><kbd class="shortcuts-keycap">↓</kbd></span>
+                      <span class="shortcuts-key-combo">
+                        <kbd class="shortcuts-keycap">↑</kbd>
+                        <kbd class="shortcuts-keycap">↓</kbd>
+                      </span>
                     </td>
                     <td>Navigate the process list</td>
                   </tr>
@@ -596,8 +619,11 @@ go-pty -f Procfile</code></pre>
                   <tr>
                     <td></td>
                     <td>
-                      <!-- prettier-ignore -->
-                      <span class="shortcuts-key-combo"><kbd class="shortcuts-keycap">ctrl</kbd><span>+</span><kbd class="shortcuts-keycap">]</kbd></span>
+                      <span class="shortcuts-key-combo">
+                        <kbd class="shortcuts-keycap">ctrl</kbd>
+                        <span>+</span>
+                        <kbd class="shortcuts-keycap">]</kbd>
+                      </span>
                     </td>
                     <td>Detach and return to combined output</td>
                   </tr>
@@ -636,27 +662,29 @@ go-pty -f Procfile</code></pre>
       <div
         class="site-shell flex items-center justify-between gap-4 text-xs text-slate-400 max-sm:flex-col max-sm:items-start"
       >
-        <span
-          >Created by
+        <span>
+          Created by
           <a
             class="link link-xs hover:text-slate-700"
             href="https://www.mendelowski.com/"
             target="_blank"
             rel="noreferrer"
-            >Lucas Mendelowski</a
-          ></span
-        >
+          >
+            Lucas Mendelowski
+          </a>
+        </span>
         <div class="flex gap-4">
-          <span
-            >Built with
+          <span>
+            Built with
             <a
               class="link link-xs hover:text-slate-700"
               href="https://www.mendelowski.com/bootboat/"
               target="_blank"
               rel="noreferrer"
-              >Bootboat</a
-            ></span
-          >
+            >
+              Bootboat
+            </a>
+          </span>
         </div>
       </div>
     </footer>
