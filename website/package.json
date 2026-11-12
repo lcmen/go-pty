@@ -10,7 +10,7 @@
     "@tailwindcss/forms": "^0.5.10",
     "concurrently": "^10.0.6",
     "serve": "^14.2.7",
-    "tailwindcss": "^4.2.1"
+    "tailwindcss": "^4.3.5"
   },
   "overrides": {
     "shell-quote": "1.9.0"
